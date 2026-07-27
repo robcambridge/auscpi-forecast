@@ -1,0 +1,14 @@
+# SQM Research weekly asking-rents basket, read by src/auscpi/collectors/sqm_rents.py.
+# One postcode per line. Keep it small and FIXED: a basket that silently changes
+# week to week is not an index. Postcodes are strings, not numbers — Darwin is
+# 0800 and that leading zero is significant.
+# Starter set: the eight capital-city GPO postcodes. Expand it deliberately.
+postcode
+2000
+3000
+4000
+5000
+6000
+7000
+0800
+2600
