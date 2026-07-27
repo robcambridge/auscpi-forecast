@@ -1,0 +1,28 @@
+# Secrets — never commit
+.env
+*.pem
+*.key
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+build/
+
+# Derived data — rebuildable from data/raw, so not tracked
+data/curated/*
+!data/curated/.gitkeep
+
+# Local scratch
+notebooks/scratch/
+.ipynb_checkpoints/
+.DS_Store
+
+# NOTE: data/raw/ and data/published/ and forecasts/ ARE tracked on purpose.
+# data/raw is the provenance layer — it can never be rebuilt.
+# forecasts/log.csv is the public track record — its git history is the proof.

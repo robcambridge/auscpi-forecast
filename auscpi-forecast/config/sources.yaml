@@ -1,0 +1,63 @@
+# Declarative source registry. The collector classes are the source of truth for
+# behaviour; this file is for scheduling metadata and human documentation.
+
+sources:
+  fuelcheck:
+    enabled: true
+    cadence: daily
+    run_at_utc: "20:00"        # 06:00 AEST
+    backfillable: true         # archives on data.nsw.gov.au
+    expenditure_classes: [automotive_fuel]
+    basket_weight_pct: 3.5
+
+  abs_cpi_monthly:
+    enabled: false             # enable once the dataflow id is confirmed
+    cadence: monthly
+    run_after: release_calendar
+    backfillable: true
+    expenditure_classes: [all]
+
+  sqm_rents:
+    enabled: false             # not yet implemented — Phase 1
+    cadence: weekly
+    backfillable: false        # START THIS EARLY
+    expenditure_classes: [rents]
+    basket_weight_pct: 6.0
+
+  grocery_basket:
+    enabled: false             # not yet implemented — Phase 1
+    cadence: daily
+    backfillable: false        # START THIS EARLY
+    expenditure_classes: [food_and_non_alcoholic_beverages]
+    basket_weight_pct: 17.0
+
+  # --- forecast-specific sources (Phase 4), not yet implemented ---
+
+  rba_smp_forecasts:
+    enabled: false
+    cadence: quarterly
+    backfillable: true
+    role: benchmark            # the only benchmark that really matters
+    note: Manual entry is fine. Four numbers a quarter.
+
+  abs_wpi:
+    enabled: false
+    cadence: quarterly
+    backfillable: true
+    role: driver
+    drives: [services_inflation]
+
+  fuel_forward_curve:
+    enabled: false
+    cadence: daily
+    backfillable: false
+    role: driver
+    drives: [automotive_fuel]
+    note: Refined product futures + AUD forwards + known excise indexation.
+
+  aud_forwards:
+    enabled: false
+    cadence: daily
+    backfillable: true
+    role: driver
+    drives: [tradables]
