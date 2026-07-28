@@ -1,0 +1,42 @@
+name: collect-monthly
+
+# Monthly sources, kept out of collect.yml because that job runs daily and these
+# files only change once a month — running them daily would re-download the same
+# spreadsheet 30 times and commit 30 identical snapshots.
+#
+# Unlike the retail scrapers, this one is safe in Actions: NSW rental bond data is
+# CC-BY open data served without bot protection, so a datacentre IP is fine.
+#
+# Runs on the 10th. NSW Fair Trading publishes the previous month's lodgements a
+# little into the following month, and naming the source explicitly runs it even
+# though `enabled = False` keeps it out of the daily `collect --all`.
+
+on:
+  schedule:
+    - cron: "0 20 10 * *"   # 10th of the month, 06:00 AEST / 07:00 AEDT
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install -e .
+
+      - name: Collect NSW rental bonds
+        run: auscpi collect nsw_rental_bonds
+
+      - name: Commit snapshots
+        run: |
+          git config user.name  "auscpi-bot"
+          git config user.email "actions@github.com"
+          git add data/raw
+          git diff --staged --quiet || git commit -m "data: nsw rental bonds $(date -u +%Y-%m)"
+          git push

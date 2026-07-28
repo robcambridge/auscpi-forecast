@@ -2,6 +2,7 @@
 
 auscpi collect --all          run every enabled collector
 auscpi collect fuelcheck      run one
+auscpi backfill-bonds         capture the NSW rental bond history
 auscpi health                 when did each source last succeed?
 auscpi log-forecast ...       append a row to the public track record
 auscpi score                  error vs benchmark, for settled forecasts
@@ -52,6 +53,31 @@ def collect(
 
     if failures:
         raise typer.Exit(code=1)
+
+
+@app.command("backfill-bonds")
+def backfill_bonds(
+    include_annual: bool = typer.Option(
+        False,
+        "--include-annual",
+        help="Also take the annual compilations. They duplicate the monthlies.",
+    ),
+    limit: int = typer.Option(None, help="Stop after N files. Useful for a trial run."),
+) -> None:
+    """Capture the published history of NSW rental bond lodgements.
+
+    Monthly files run back to January 2022 — roughly 55 files at ~675 KB each, so
+    expect ~35 MB in data/raw and a slow first run at one file every few seconds.
+    Already-captured files are skipped, so this resumes rather than restarting.
+    """
+    from auscpi.collectors.nsw_rental_bonds import backfill
+
+    written = backfill(include_annual=include_annual, limit=limit)
+    if not written:
+        console.print("[yellow]nothing to do[/yellow] — every published file is already captured.")
+        raise typer.Exit()
+    console.print(f"[green]captured[/green] {len(written)} file(s) into data/raw.")
+    console.print("[dim]Commit data/raw — it is the provenance layer.[/dim]")
 
 
 @app.command()

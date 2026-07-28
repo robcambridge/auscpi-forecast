@@ -1,3 +1,7 @@
+# UNUSED: the SQM collector is disabled — their Terms of Service prohibit
+# automated access. See docs/DATA_SOURCES.md, "Sources ruled out". Kept only so
+# the basket definition survives if SQM ever grants a data licence.
+#
 # SQM Research weekly asking-rents basket, read by src/auscpi/collectors/sqm_rents.py.
 # One postcode per line. Keep it small and FIXED: a basket that silently changes
 # week to week is not an index. Postcodes are strings, not numbers — Darwin is

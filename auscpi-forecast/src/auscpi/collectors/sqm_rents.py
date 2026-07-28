@@ -1,48 +1,36 @@
-"""SQM Research — weekly asking rents by postcode.
+"""SQM Research — weekly asking rents by postcode. DISABLED: DO NOT SCRAPE.
 
-Why this collector is a priority even though it will not run in CI:
+Status: ruled out on 2026-07-28. SQM's Terms of Service prohibit automated
+access in three separate clauses — see docs/DATA_SOURCES.md, "Sources ruled
+out", which quotes them. The licence they grant is expressly conditional on
+compliance with that section, so scraping voids it outright.
 
-Asking rents lead the ABS *measured* rents series, because the ABS prices rents
-on the whole stock of dwellings, not on newly advertised leases. When market
-rents move, the measured index only catches up as existing leases roll over,
-which takes roughly a year. So today's asking rents mechanically constrain
-measured rents six to twelve months out — that lag is the rent roll-through
-model, the project's main forecasting edge (see docs/DATA_SOURCES.md).
+`robots.txt` permits this (`User-agent: *` → `Allow: /`, no Crawl-delay) and an
+honest non-browser client is served HTTP 200. That is not permission. robots.txt
+is a crawler convention; the Terms of Service are the contract, and where the two
+disagree the contract wins. Do not let a green robots.txt talk you back into it.
 
-Unlike an API series this is NOT backfillable: there is no archive to reprocess
-if we start late, so every week not collected is a week permanently missing from
-the sample. That is why it ships now rather than after the parser exists.
+The replacement is NSW Rental Bond Lodgements: new-lease rents by postcode,
+CC-BY, monthly, backfillable to 2021. It measures rents on tenancies as they
+start, which is the same lead-over-measured-rents property that made asking rents
+worth collecting, so the rent roll-through model loses nothing important.
 
-Scraping conduct (docs/DATA_SOURCES.md, "Scraping conduct"):
+This module is kept, rather than deleted, because it is the record of what was
+checked and why the answer was no — and because it becomes usable immediately if
+SQM ever grants a data licence or written consent. It cannot run: `enabled` is
+False and fetch() raises before opening a connection. Removing that guard without
+a licence in hand would breach the terms and the conduct rules in
+docs/DATA_SOURCES.md.
 
-  - robots.txt was checked on 2026-07-27. The generic `User-agent: *` group is
-    `Allow: /` with no Crawl-delay. Named AI-training crawlers (ClaudeBot,
-    GPTBot, CCBot, Google-Extended, ...) are each `Disallow: /` by token; this
-    collector is none of them, identifies honestly as auscpi-forecast, and so
-    falls under the permissive `*` group. The site's `Content-Signal: ai-train=no`
-    reservation is respected — these snapshots feed a time-series rent index, and
-    must never be used to train or fine-tune a model.
-  - One request every few seconds (REQUEST_SPACING_S); honest User-Agent with a
-    contact URL, deliberately not disguised as a browser. If honest access ever
-    stops being served, that is a signal to stop and contact SQM, not to evade.
-  - Only the raw HTML is stored. SQM's per-postcode figures are never
-    republished; only the derived, aggregated rent index is ever published.
-
-Where the data is: each weekly-rents page embeds the full weekly history back to
-2009 inline as a `var data = [...]` JSON array, so a single GET per postcode
-captures everything. Extracting it is the build step's job — fetch() returns the
-HTML untouched, per the collectors-do-not-parse rule.
-
-Running it: disabled by default. SQM sits behind Cloudflare, which blocks
-datacentre IP ranges, so this 403s from GitHub Actions (see collect.yml); run it
-weekly from a residential IP with `auscpi collect sqm_rents`. Confirm SQM's Terms
-of Use permit automated access before enabling.
+What was verified while the question was still open, kept because it saves
+redoing the work if a licence is ever obtained: each weekly-rents page embeds the
+full weekly history back to 2009 inline as a `var data = [...]` JSON array, so
+one GET per postcode captures everything and no JS rendering is required.
 """
 
 from __future__ import annotations
 
 import csv
-import time
 from typing import Any
 
 import httpx
@@ -52,12 +40,23 @@ from auscpi.collectors.base import Collector
 from auscpi.config import REPO_ROOT
 
 WEEKLY_RENTS_URL = "https://sqmresearch.com.au/weekly-rents.php"
+TERMS_URL = "https://sqmresearch.com.au/terms-of-service"
 POSTCODE_FILE = REPO_ROOT / "config" / "sqm_postcodes.csv"
 TIMEOUT = httpx.Timeout(60.0)
 
-# robots.txt sets no Crawl-delay, so we self-impose one. A weekly snapshot of a
-# small basket has no reason to hurry, and a few seconds between hits is the
-# courteous floor the conduct rules ask for.
+# Raised by fetch(). Spelled out rather than a bare `pass` so that anyone who hits
+# it gets the reason and the alternative, not just a stack trace.
+BLOCKED_MESSAGE = (
+    "sqm_rents is disabled: SQM Research's Terms of Service prohibit automated "
+    f"access ({TERMS_URL}). robots.txt permitting it is not permission — the terms "
+    "are the binding document. Use NSW Rental Bond Lodgement data instead "
+    "(new-lease rents by postcode, CC-BY, backfillable). See docs/DATA_SOURCES.md, "
+    "'Sources ruled out'. Do not remove this guard without a data licence or "
+    "written consent from SQM."
+)
+
+# One request every few seconds, were this ever licensed. robots.txt sets no
+# Crawl-delay, so the courteous floor is self-imposed.
 REQUEST_SPACING_S = 4.0
 
 # Honest identification with a contact URL, as the conduct rules require. This is
@@ -130,35 +129,12 @@ def _fetch_postcode(client: httpx.Client, postcode: str) -> str:
 class SQMRentsCollector(Collector):
     source = "sqm_rents"
     cadence = "weekly"
-    # Off by default: Cloudflare blocks datacentre IPs so this 403s in CI, the
-    # daily collect.yml would run it far too often, and SQM's Terms of Use should
-    # be confirmed first. Enable it on a residential-IP machine on a weekly job.
+    # Terms of Service prohibit automated access. Not a scheduling decision — do
+    # not flip this without a licence from SQM. fetch() refuses regardless.
     enabled = False
 
     def fetch(self) -> tuple[Any, str, int | None]:
-        postcodes = load_postcodes()
-        pages: dict[str, str] = {}
-        failed: dict[str, str] = {}
-
-        with httpx.Client(headers={"User-Agent": USER_AGENT}, follow_redirects=True) as client:
-            for i, postcode in enumerate(postcodes):
-                if i:
-                    time.sleep(REQUEST_SPACING_S)
-                try:
-                    pages[postcode] = _fetch_postcode(client, postcode)
-                except Exception as exc:  # noqa: BLE001
-                    # One dead postcode must not lose the rest of the basket. Record
-                    # the reason so the gap is explained rather than silent.
-                    failed[postcode] = f"{type(exc).__name__}: {exc}"
-
-        if not pages:
-            # An empty run is a real failure — most likely the whole IP is blocked.
-            # Raise so base.run() writes an error snapshot instead of a useless ok.
-            raise RuntimeError(
-                f"SQM returned no pages for any of {len(postcodes)} postcodes; "
-                f"first error: {next(iter(failed.values()), 'none')}"
-            )
-
-        # Raw HTML only, keyed by the postcode we requested. The weekly series is
-        # embedded in each page; parsing it belongs in the build step, not here.
-        return {"pages": pages, "failed": failed}, WEEKLY_RENTS_URL, len(pages)
+        # Deliberately before any network call: flipping `enabled` alone must not
+        # be enough to start scraping a source whose terms forbid it. base.run()
+        # turns this into a logged error snapshot rather than a crash.
+        raise RuntimeError(BLOCKED_MESSAGE)

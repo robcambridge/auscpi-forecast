@@ -21,8 +21,12 @@ Only goal: data starts accumulating today.
 - [x] Collector framework, health check, scheduled runs
 - [x] FuelCheck daily collector
 - [ ] FuelCheck API key, repo secrets, confirm the Action runs
-- [ ] **SQM weekly asking rents** — highest priority, this is the input to the
-      main forecasting edge and it cannot be backfilled
+- [x] ~~**SQM weekly asking rents**~~ — ruled out, their Terms of Service prohibit
+      automated access (docs/DATA_SOURCES.md, "Sources ruled out")
+- [ ] **NSW rental bond lodgements** — the replacement rent indicator, and the
+      input to the main forecasting edge. New-lease rents by postcode, CC-BY.
+      No longer the day-one priority: unlike asking rents this backfills to
+      Jan 2021, so nothing is lost by building it after the grocery scraper.
 - [ ] Grocery basket scraper — fixed ~200 SKUs mapped to expenditure classes
 - [ ] Confirm the ABS dataflow id, enable the ABS collector
 - [ ] Backfill FuelCheck history from data.nsw.gov.au archives

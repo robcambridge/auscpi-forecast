@@ -12,6 +12,7 @@ day not collected is a day permanently absent from your sample.
 | ABS quarterly CPI | Decades of quarterly history | ABS Data API | CC-BY |
 | RBA statistical tables | Cash rate, market rates, inflation expectations | CSV/XLSX | CC-BY |
 | NSW FuelCheck **archives** | Historical station-level prices | data.nsw.gov.au dataset files | CC-BY |
+| NSW Rental Bond Lodgements | Monthly **new-lease** rents by postcode: weekly rent, dwelling type, bedrooms | NSW Fair Trading .xlsx, monthly, back to Jan 2021 | CC-BY |
 | AER Default Market Offer | Regulated electricity price determinations | PDF/HTML, published in advance | CC-BY |
 | IPART determinations | NSW regulated prices (water, transport) | PDF/HTML | CC-BY |
 | Commonwealth Budget / MYEFO | Fiscal measures with quantified price effects | PDF | CC-BY |
@@ -32,7 +33,7 @@ rounded factor.
 
 | Source | What | Access | Note |
 |---|---|---|---|
-| SQM Research | Weekly asking rents by postcode | HTML | Asking rents lead *measured* rents, which the ABS collects on the stock, not on new leases. The lag structure is the modelling problem. |
+| ~~SQM Research~~ | ~~Weekly asking rents by postcode~~ | **RULED OUT — terms prohibit automated access.** See "Sources ruled out" below. Replaced by NSW Rental Bond Lodgements, above. |  |
 | Coles / Woolworths | Grocery shelf prices, fixed SKU basket | HTML | Food & non-alcoholic beverages is ~17% of the basket. Keep the basket small and fixed; a changing basket is not an index. |
 | Airline fares | Domestic route fares | HTML | Travel is wildly volatile and seasonal. |
 | Live FuelCheck | Daily station prices | api.nsw.gov.au | Also backfillable via archives, so this one is belt and braces. |
@@ -55,12 +56,90 @@ as the code.
   file and use a different indicator. A missing component is recoverable; a
   cease-and-desist attached to your name is less so.
 
+## Sources ruled out
+
+### SQM Research — asking rents. Do not scrape. (checked 2026-07-28)
+
+`robots.txt` permits it; the **Terms of Service do not**, and the terms are the
+binding document. Three separate clauses at
+<https://sqmresearch.com.au/terms-of-service>:
+
+> (5) you will not access the Services through automated or non-human means,
+> whether through a bot, script or otherwise
+
+> Engage in any automated use of the system, such as using scripts to send
+> comments or messages, or using any data mining, robots, or similar data
+> gathering and extraction tools.
+
+> Except as may be the result of standard search engine or Internet browser
+> usage, use, launch, develop, or distribute any automated system, including
+> without limitation, any spider, robot, cheat utility, scraper, or offline
+> reader that accesses the Services
+
+The access licence they grant is "personal, non-commercial use or internal
+business purpose only" and is expressly conditional on compliance with that
+Prohibited Activities section, so scraping voids the licence rather than merely
+breaching a guideline. Reports also may not be redistributed without prior
+written consent.
+
+For the record, because it is easy to talk yourself into the opposite: `robots.txt`
+has `User-agent: *` → `Allow: /` with no `Crawl-delay`, and named AI crawlers
+(ClaudeBot, GPTBot, CCBot, Google-Extended, …) each `Disallow: /`. An honest
+non-browser client is in fact served HTTP 200. **None of that grants permission.**
+robots.txt is a crawler convention; the ToS is the contract, and where they
+disagree the ToS wins.
+
+`collectors/sqm_rents.py` exists but is hard-disabled and raises if invoked. The
+only legitimate routes are a data licence purchased from SQM, or their prior
+written consent. Until then it stays off.
+
+### The replacement: NSW Rental Bond Lodgements
+
+Better suited to this project than SQM was, not merely a consolation:
+
+- Bonds are lodged **at the start of a tenancy**, so this measures new-lease
+  rents directly — the same lead-over-measured-rents property that made asking
+  rents worth having, and the input the roll-through model actually wants.
+- Transacted rents on signed leases, not advertised asking prices, so it has no
+  listing or withdrawal bias.
+- CC-BY, from the same data.nsw.gov.au portal already used for FuelCheck
+  archives, so the licensing question is settled and identical.
+- **Backfillable to January 2021**, which removes the "collect today or lose it
+  forever" urgency that made SQM the Phase 1 priority in the first place.
+
+Honest trade-offs: NSW only, where SQM was national — but the project already
+takes a NSW-only fuel source and estimates the NSW-to-national gap, so the
+pattern exists. Monthly rather than weekly, and published with a processing lag,
+so it is less timely; against that, new-lease rents lead measured rents by
+6–12 months, which dwarfs the difference between a weekly and a monthly
+observation. Victoria's DFFH quarterly rental report is the obvious second
+jurisdiction if national coverage matters later.
+
 ## Access notes
 
 **NSW FuelCheck.** Free registration at <https://api.nsw.gov.au/Product/Index/22>.
 OAuth2 client credentials against `api.onegov.nsw.gov.au`; tokens are
 short-lived so mint one per run. The all-prices endpoint returns every
 prescribed fuel at 2,500+ NSW stations.
+
+**NSW rental bond lodgements.** No key, no auth, CC-BY. Index page:
+<https://www.nsw.gov.au/housing-and-construction/rental-forms-surveys-and-data/rental-bond-data>.
+Monthly `.xlsx`, record-level — one row per lodgement, columns Lodgement Date,
+Postcode, Dwelling Type, Bedrooms, Weekly Rent (~25k rows, ~675 KB). Annual
+compilations are the same rows concatenated, so take one or the other, never
+both.
+
+The filenames cannot be templated. Real examples, all of them lodgement files:
+`rentalbond_lodgements_june_2026.xlsx`, `rental-bond-lodgement-data-july-2025.xlsx`,
+`rentalbond_lodgements_september25.xlsx`, `RentalBond_Lodgements_December_2023.xlsx`,
+`rentalbond_lodgements_june_2025_0.xlsx`. The containing directory does not match
+the data month either — `/2024-05/` holds March, February and January 2024 plus
+December 2023. So the collector discovers links from the index page and reads the
+period back off the filename. Refunds and holdings are separate series published
+on the same page; match on "lodge" to avoid them.
+
+Run monthly with `auscpi collect nsw_rental_bonds`; capture the history to
+January 2022 with `auscpi backfill-bonds` (~35 MB, one-time).
 
 **ABS Data API.** `https://data.api.abs.gov.au/rest/`. Confirm the dataflow
 identifier for the Monthly CPI publication against

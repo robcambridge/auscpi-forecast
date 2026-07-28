@@ -18,11 +18,28 @@ sources:
     expenditure_classes: [all]
 
   sqm_rents:
-    enabled: false             # implemented; enable on a residential-IP weekly runner (Cloudflare 403s CI). Verify SQM ToS first.
+    enabled: false             # RULED OUT — SQM's Terms of Service prohibit automated
+                               # access. Collector is hard-disabled and raises if run.
+                               # See docs/DATA_SOURCES.md, "Sources ruled out".
     cadence: weekly
-    backfillable: false        # START THIS EARLY
+    backfillable: false
     expenditure_classes: [rents]
     basket_weight_pct: 6.0
+    replaced_by: nsw_rental_bonds
+
+  nsw_rental_bonds:
+    enabled: false             # implemented. Excluded from the DAILY `collect --all`
+                               # because it is monthly, not because it is restricted —
+                               # runs via .github/workflows/collect-monthly.yml.
+    cadence: monthly           # NSW Fair Trading publishes lodgement files monthly
+    backfillable: true         # .xlsx archives back to Jan 2021, so no rush
+    expenditure_classes: [rents]
+    basket_weight_pct: 6.0
+    note: >-
+      New-lease rents by postcode (weekly rent, dwelling type, bedrooms), lodged
+      at tenancy commencement. CC-BY. Leads ABS measured rents by 6-12 months,
+      which is the rent roll-through input. NSW only — estimate the
+      NSW-to-national gap as with FuelCheck.
 
   grocery_basket:
     enabled: false             # not yet implemented — Phase 1
