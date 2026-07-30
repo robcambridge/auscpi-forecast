@@ -1,0 +1,1 @@
+{"source": "abs_cpi_weights", "fetched_at": "2026-07-30T05:16:47.451163+00:00", "url": "https://data.api.abs.gov.au/rest/data/ABS,CPI_WEIGHTS,1.0.0/..50.Q", "status": "ok", "payload_path": "data\\raw\\abs_cpi_weights\\2026\\07\\abs_cpi_weights_20260730T051647Z.json.gz", "sha256": "056fe4cdad3a2d97bbe405f1ddff6c16a2b06db5cb0d8a6a7cc7eb1d052de137", "n_records": 396, "note": ""}

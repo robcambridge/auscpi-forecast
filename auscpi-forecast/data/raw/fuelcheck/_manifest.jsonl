@@ -1,0 +1,1 @@
+{"source": "fuelcheck", "fetched_at": "2026-07-30T05:16:40.914582+00:00", "url": "https://api.onegov.nsw.gov.au/FuelPriceCheck/v1/fuel/prices", "status": "ok", "payload_path": "data\\raw\\fuelcheck\\2026\\07\\fuelcheck_20260730T051640Z.json.gz", "sha256": "581fabba1e5322e74295dcbcf2e457d5705f6fe39e351a2620fab0d19d5c0d75", "n_records": 10591, "note": ""}

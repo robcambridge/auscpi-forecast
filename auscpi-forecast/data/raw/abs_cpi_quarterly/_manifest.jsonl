@@ -1,0 +1,1 @@
+{"source": "abs_cpi_quarterly", "fetched_at": "2026-07-30T05:16:44.254437+00:00", "url": "https://data.api.abs.gov.au/rest/data/ABS,CPI,2.0.0/...50.Q", "status": "ok", "payload_path": "data\\raw\\abs_cpi_quarterly\\2026\\07\\abs_cpi_quarterly_20260730T051644Z.json.gz", "sha256": "474a647a09312f6861daeb4e58bbdf52e2dca729bcc9fba1c0f5508042a54ec3", "n_records": 396, "note": ""}
