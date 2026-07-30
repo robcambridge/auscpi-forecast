@@ -4,6 +4,8 @@ auscpi collect --all          run every enabled collector
 auscpi collect fuelcheck      run one
 auscpi backfill-bonds         capture the NSW rental bond history
 auscpi build                  rebuild data/curated from data/raw
+auscpi forecast --log         produce and log a naive h=0..12 path
+auscpi fill-actual            fill `actual` for months the ABS has published
 auscpi health                 when did each source last succeed?
 auscpi log-forecast ...       append a row to the public track record
 auscpi score                  error vs benchmark, for settled forecasts
@@ -123,6 +125,124 @@ def backfill_bonds(
         raise typer.Exit()
     console.print(f"[green]captured[/green] {len(written)} file(s) into data/raw.")
     console.print("[dim]Commit data/raw — it is the provenance layer.[/dim]")
+
+
+@app.command()
+def forecast(
+    target: str = typer.Option(
+        None, help="One target, or omitted for every target this vintage supports."
+    ),
+    model: str = typer.Option(None, help="Path rule. Omitted, the target's default is used."),
+    benchmark: str = typer.Option(None, help="Benchmark rule. Must differ from the model."),
+    horizons: int = typer.Option(12, help="Longest horizon. The path runs h=0..N."),
+    as_at: str = typer.Option(
+        None, "--as-at", help="Backtest against the vintage at this instant."
+    ),
+    log: bool = typer.Option(False, "--log", help="Append the path to forecasts/log.csv."),
+) -> None:
+    """Produce a forecast path. Naive v0 — see auscpi/forecast.py on what is weak.
+
+    Without --log this only prints, so it is safe to inspect before committing to
+    the public track record.
+    """
+    from auscpi.forecast import forecast_all, forecast_path
+
+    cutoff = None
+    if as_at:
+        cutoff = datetime.fromisoformat(as_at)
+        if cutoff.tzinfo is None:
+            cutoff = cutoff.replace(tzinfo=UTC)
+
+    span = range(horizons + 1)
+    try:
+        paths = (
+            [forecast_path(target, model=model, benchmark=benchmark, horizons=span, as_at=cutoff)]
+            if target
+            else forecast_all(horizons=span, as_at=cutoff)
+        )
+    except FileNotFoundError as exc:
+        console.print(f"[red]no data[/red] {exc}")
+        raise typer.Exit(code=1) from exc
+
+    if not paths:
+        console.print("[yellow]no target could be forecast from this vintage[/yellow]")
+        raise typer.Exit(code=1)
+
+    for path in paths:
+        table = Table(
+            "h", "month", "point", f"benchmark ({path.benchmark})", title=f"{path.target}"
+        )
+        for r in path.records:
+            table.add_row(
+                str(r.horizon_months),
+                r.reference_month,
+                f"{r.point:+.2f}",
+                "-" if r.benchmark_point is None else f"{r.benchmark_point:+.2f}",
+            )
+        console.print(table)
+        console.print(
+            f"[dim]model {path.model} v0-naive · origin {path.origin} · "
+            f"information cutoff {path.information_cutoff}[/dim]"
+        )
+
+    if not log:
+        console.print("\n[yellow]not logged[/yellow] — re-run with --log to append it.")
+        raise typer.Exit()
+
+    n = 0
+    for path in paths:
+        for record in path.records:
+            track_record.log_forecast(record)
+            n += 1
+    console.print(f"\n[green]logged[/green] {n} rows to forecasts/log.csv.")
+    console.print("[dim]Commit and push it — the push time is the proof.[/dim]")
+
+
+@app.command("fill-actual")
+def fill_actual(
+    as_at: str = typer.Option(None, "--as-at", help="Use the vintage at this instant."),
+) -> None:
+    """Fill `actual` for reference months the ABS has now published.
+
+    The only edit permitted to forecasts/log.csv. Rows with an actual already set
+    are never rewritten, so this is safe to run after every release.
+    """
+    from auscpi.build import load_panel
+    from auscpi.parsers.abs_cpi import TARGETS, target_series
+
+    cutoff = None
+    if as_at:
+        cutoff = datetime.fromisoformat(as_at)
+        if cutoff.tzinfo is None:
+            cutoff = cutoff.replace(tzinfo=UTC)
+
+    try:
+        panel = load_panel("abs_cpi_monthly", as_at=cutoff)
+    except FileNotFoundError as exc:
+        console.print(f"[red]no data[/red] {exc}")
+        raise typer.Exit(code=1) from exc
+
+    actuals: dict[tuple[str, str], float] = {}
+    for name in TARGETS:
+        try:
+            series = target_series(panel, name).dropna()
+        except ValueError:
+            continue
+        for period, value in series.items():
+            actuals[(name, str(period))] = float(value)
+
+    result = track_record.fill_actuals(actuals)
+    if not result.rows:
+        console.print("[yellow]no forecast log yet[/yellow] — run `auscpi forecast --log` first.")
+        raise typer.Exit()
+
+    console.print(
+        f"[green]filled[/green] {result.filled}   "
+        f"[dim]already set {result.already_set} · not yet released {result.unavailable} · "
+        f"rows {result.rows}[/dim]"
+    )
+    if result.filled:
+        console.print("[dim]Commit it, then `auscpi score`.[/dim]")
 
 
 @app.command()

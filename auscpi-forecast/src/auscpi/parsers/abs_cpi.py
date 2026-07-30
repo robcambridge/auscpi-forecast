@@ -143,6 +143,36 @@ def parse_sdmx_json(doc: dict[str, Any]) -> pd.DataFrame:
     return panel.sort_values(["index_id", "measure", "tsest", "period_end"]).reset_index(drop=True)
 
 
+def series_for(
+    panel: pd.DataFrame,
+    index_id: str,
+    measure: str,
+    tsest: str,
+    *,
+    region: str = REGION_AUSTRALIA,
+    name: str = "value",
+) -> pd.Series:
+    """Any one series from the panel, indexed by period id, oldest first.
+
+    The general form of target_series, for series that are not track_record
+    targets — the m/m companion of a year-ended target, say, which a model needs
+    even though nobody forecasts it directly.
+    """
+    hit = panel[
+        (panel["index_id"] == index_id)
+        & (panel["measure"] == measure)
+        & (panel["tsest"] == tsest)
+        & (panel["region"] == region)
+    ]
+    if hit.empty:
+        raise ValueError(
+            f"no observations for index={index_id}, measure={measure}, "
+            f"tsest={tsest}, region={region}"
+        )
+    hit = hit.sort_values("period_end")
+    return pd.Series(hit["value"].to_numpy(), index=hit["period"].to_numpy(), name=name)
+
+
 def target_series(panel: pd.DataFrame, target: str, *, region: str = REGION_AUSTRALIA) -> pd.Series:
     """One target as a float Series indexed by period id, oldest first.
 

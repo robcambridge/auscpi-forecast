@@ -46,9 +46,10 @@ class ForecastRecord:
     horizon_months: int  # 0 = nowcast, 1 = next month, 3 = one quarter out
     target: str  # headline_mom | headline_yoy | trimmed_mean_yoy
     point: float
-    information_cutoff: str = ""  # last date of data used; equals made_at live,
-    # differs in a backtest — this is the field that
-    # makes look-ahead detectable
+    information_cutoff: str = ""  # last data used. `auscpi forecast` writes the
+    # newest observed reference month ("2026-06");
+    # hand-entered rows fall back to made_at. This
+    # is the field that makes look-ahead detectable
     p10: float | None = None
     p25: float | None = None
     p75: float | None = None
@@ -93,6 +94,66 @@ def log_forecast(record: ForecastRecord) -> None:
         if new:
             writer.writeheader()
         writer.writerow(asdict(record))
+
+
+@dataclass
+class FillResult:
+    filled: int
+    already_set: int
+    unavailable: int
+    rows: int
+
+
+def fill_actuals(actuals: dict[tuple[str, str], float]) -> FillResult:
+    """Fill the `actual` column for settled rows. Keyed by (target, reference_month).
+
+    The only edit rule 4 permits on this file, so it is deliberately narrow:
+
+      - `actual` is the only field written. Every other value is copied through
+        verbatim, and the file's own header is reused rather than the dataclass
+        field order, so a log written by a different version is not silently
+        reshaped.
+      - A row whose `actual` is already set is left alone and counted in
+        `already_set`. The ABS does revise, but overwriting a logged actual would
+        rewrite history to the model's advantage, which is exactly the accusation
+        this file exists to answer. Revisions belong in a new column, decided
+        deliberately, not smuggled in through a fill.
+      - The rewrite goes to a temporary file and is then moved into place, so an
+        interrupted run cannot truncate the track record.
+    """
+    path = settings.forecast_log
+    if not path.exists():
+        return FillResult(filled=0, already_set=0, unavailable=0, rows=0)
+
+    with path.open(encoding="utf-8", newline="") as fh:
+        reader = csv.DictReader(fh)
+        fieldnames = reader.fieldnames or []
+        rows = list(reader)
+
+    if "actual" not in fieldnames:
+        raise ValueError(f"{path} has no `actual` column; refusing to reshape it")
+
+    filled = already = unavailable = 0
+    for row in rows:
+        if (row.get("actual") or "").strip():
+            already += 1
+            continue
+        value = actuals.get((row.get("target", ""), row.get("reference_month", "")))
+        if value is None:
+            unavailable += 1
+            continue
+        row["actual"] = f"{value:g}"
+        filled += 1
+
+    if filled:
+        tmp = path.with_suffix(path.suffix + ".tmp")
+        with tmp.open("w", newline="", encoding="utf-8") as fh:
+            writer = csv.DictWriter(fh, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(rows)
+        tmp.replace(path)
+
+    return FillResult(filled=filled, already_set=already, unavailable=unavailable, rows=len(rows))
 
 
 def score(by_horizon: bool = True) -> list[dict[str, object]]:

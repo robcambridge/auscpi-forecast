@@ -61,6 +61,18 @@ def atkeson_ohanian(mom_history: Sequence[float], window: int = 12) -> float:
     return float(((1 + mean_mom / 100) ** 12 - 1) * 100)
 
 
+def mean_mom(mom_history: Sequence[float], window: int = 12) -> float:
+    """Average of the last `window` monthly rates, left as a monthly rate.
+
+    Atkeson-Ohanian without the annualisation, so it can sit beside a m/m
+    forecast. Deceptively hard to beat on a noisy monthly series, which is the
+    point of using it as the benchmark rather than as the model.
+    """
+    if len(mom_history) < window:
+        raise ValueError(f"need {window} observations, got {len(mom_history)}")
+    return float(sum(mom_history[-window:]) / window)
+
+
 def seasonal_naive_mom(mom_history: Sequence[float], lag: int = 12) -> float:
     """This month's m/m equals the same calendar month `lag` periods ago."""
     if len(mom_history) < lag:

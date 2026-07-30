@@ -49,7 +49,12 @@ three days running, untouched.
       Wednesday from February 2027, do not hardcode it
 - [ ] RBA SMP forecasts entered as a benchmark series (manual entry is fine,
       it is four numbers a quarter)
-- [ ] **Log the first public forecast path and push it**
+- [ ] **Log the first public forecast path and push it** — the machinery is done
+      (`auscpi forecast --log`, then `auscpi fill-actual` after each print, then
+      `auscpi score`). The path is `v0-naive`: seasonal naive for m/m,
+      Atkeson-Ohanian for the year-ended targets, each against a different
+      benchmark. Year-ended paths are flat — see forecasts/README.md. Remaining
+      step is a human one: run it, commit, push.
 
 Log a path before the next release even though the model is bad. A track record
 starting at n=1 with a weak model beats one starting at n=0 with a good one, and

@@ -60,6 +60,21 @@ def _select_snapshot(source: str, as_at: datetime | None) -> dict[str, Any]:
     return max(entries, key=lambda m: m["fetched_at"])
 
 
+def load_panel(source: str, *, as_at: datetime | None = None) -> pd.DataFrame:
+    """Parse a raw snapshot straight into a panel, without touching data/curated.
+
+    Modelling code reads through here rather than off the curated parquet, for two
+    reasons: `as_at` keeps rule 3 enforceable at the point of use, and a forecast
+    can never accidentally be built on a curated file left over from an older
+    vintage. data/curated is for humans and inspection.
+    """
+    entry = _select_snapshot(source, as_at)
+    panel = parse_sdmx_json(load_snapshot(entry["payload_path"]))
+    if panel.empty:
+        raise ValueError(f"{source} snapshot parsed to zero rows: {entry['payload_path']}")
+    return panel
+
+
 def _write(frame: pd.DataFrame, path: Path) -> str:
     path.parent.mkdir(parents=True, exist_ok=True)
     if path.suffix == ".parquet":
