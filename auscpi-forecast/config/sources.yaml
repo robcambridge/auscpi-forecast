@@ -1,5 +1,9 @@
 # Declarative source registry. The collector classes are the source of truth for
 # behaviour; this file is for scheduling metadata and human documentation.
+#
+# basket_weight_pct values are the ABS published weights at the 2024-Q4 reweight,
+# from ABS,CPI_WEIGHTS,1.0.0 — not estimates. Re-check them after each reweight:
+# `auscpi collect abs_cpi_weights && auscpi build`.
 
 sources:
   fuelcheck:
@@ -8,7 +12,7 @@ sources:
     run_at_utc: "20:00"        # 06:00 AEST
     backfillable: true         # archives on data.nsw.gov.au
     expenditure_classes: [automotive_fuel]
-    basket_weight_pct: 3.5
+    basket_weight_pct: 3.347       # INDEX 40081, published 2024-Q4
 
   abs_cpi_monthly:
     enabled: false             # dataflow CONFIRMED (ABS,CPI,2.0.0) and working.
@@ -36,6 +40,18 @@ sources:
       in Dec 2025 to September month 2025 = 100.00; apply conversion factors
       before mixing vintages.
 
+  abs_cpi_weights:
+    enabled: false             # runs with the other ABS sources on collect-abs.yml
+    cadence: yearly            # reweighted annually; latest published is 2024-Q4
+    backfillable: true         # the dataflow carries every reweight since 2018
+    expenditure_classes: [all]
+    role: weights
+    note: >-
+      ABS,CPI_WEIGHTS,1.0.0 key ..50.Q, plus the CL_CPI_WEIGHTS_INDEX codelist in
+      the same snapshot. The dataflow holds all four hierarchy levels at once and
+      EACH sums to 100, so summing indiscriminately gives 400 — read the
+      expenditure_class level, which is what the parser defaults to and validates.
+
   sqm_rents:
     enabled: false             # RULED OUT — SQM's Terms of Service prohibit automated
                                # access. Collector is hard-disabled and raises if run.
@@ -43,7 +59,7 @@ sources:
     cadence: weekly
     backfillable: false
     expenditure_classes: [rents]
-    basket_weight_pct: 6.0
+    basket_weight_pct: 6.613       # INDEX 30014, published 2024-Q4
     replaced_by: nsw_rental_bonds
 
   nsw_rental_bonds:
@@ -53,7 +69,7 @@ sources:
     cadence: monthly           # NSW Fair Trading publishes lodgement files monthly
     backfillable: true         # .xlsx archives back to Jan 2021, so no rush
     expenditure_classes: [rents]
-    basket_weight_pct: 6.0
+    basket_weight_pct: 6.613       # INDEX 30014, published 2024-Q4
     note: >-
       New-lease rents by postcode (weekly rent, dwelling type, bedrooms), lodged
       at tenancy commencement. CC-BY. Leads ABS measured rents by 6-12 months,
@@ -65,7 +81,7 @@ sources:
     cadence: daily
     backfillable: false        # START THIS EARLY
     expenditure_classes: [food_and_non_alcoholic_beverages]
-    basket_weight_pct: 17.0
+    basket_weight_pct: 17.439      # GROUP 20001, published 2024-Q4
 
   # --- forecast-specific sources (Phase 4), not yet implemented ---
 

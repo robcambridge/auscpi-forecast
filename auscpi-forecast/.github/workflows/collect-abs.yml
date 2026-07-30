@@ -40,6 +40,11 @@ jobs:
       - name: Collect quarterly CPI
         run: auscpi collect abs_cpi_quarterly
 
+      # Reweighted annually, but only ~31 KB, and collecting it monthly means the
+      # reweight is captured whenever it lands rather than being missed for a year.
+      - name: Collect CPI weights
+        run: auscpi collect abs_cpi_weights
+
       - name: Commit snapshots
         run: |
           git config user.name  "auscpi-bot"

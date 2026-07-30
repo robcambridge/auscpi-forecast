@@ -111,6 +111,40 @@ def build_abs_cpi(source: str, *, as_at: datetime | None = None) -> BuildResult:
     )
 
 
+def build_abs_cpi_weights(*, as_at: datetime | None = None) -> BuildResult:
+    """Parse the weights snapshot into a levelled panel plus the class weights.
+
+    The expenditure-class CSV is the one downstream code should read: it is the
+    level that sums to 100, and `weights_at` refuses to emit it otherwise.
+    """
+    from auscpi.parsers.abs_cpi_weights import weights_at, weights_panel
+
+    source = "abs_cpi_weights"
+    manifest_entry = _select_snapshot(source, as_at)
+    payload = load_snapshot(manifest_entry["payload_path"])
+
+    panel = weights_panel(payload)
+    classes = weights_at(payload)
+
+    outputs = [_write(panel, settings.curated_dir / f"{source}.parquet")]
+    outputs.append(
+        _write(
+            classes.rename("weight").rename_axis("index_id").reset_index(),
+            settings.curated_dir / f"{source}_expenditure_classes.csv",
+        )
+    )
+
+    latest = panel.loc[panel["period_end"].idxmax(), "period"]
+    return BuildResult(
+        source=source,
+        rows=len(panel),
+        periods=panel["period"].nunique(),
+        latest_period=str(latest),
+        outputs=outputs,
+        vintage=manifest_entry["fetched_at"],
+    )
+
+
 def build_all(*, as_at: datetime | None = None, strict: bool = False) -> list[BuildResult]:
     """Build every source that has a snapshot.
 
@@ -125,4 +159,9 @@ def build_all(*, as_at: datetime | None = None, strict: bool = False) -> list[Bu
         except FileNotFoundError:
             if strict:
                 raise
+    try:
+        results.append(build_abs_cpi_weights(as_at=as_at))
+    except FileNotFoundError:
+        if strict:
+            raise
     return results

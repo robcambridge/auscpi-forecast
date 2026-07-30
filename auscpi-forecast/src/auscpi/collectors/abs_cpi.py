@@ -69,6 +69,11 @@ DATAFLOW_BASE = "https://data.api.abs.gov.au/rest"
 DATAFLOW = "ABS,CPI,2.0.0"
 TIMEOUT = httpx.Timeout(300.0)
 
+#: The published expenditure weights, and the codelist that gives them a hierarchy.
+DATAFLOW_WEIGHTS = "ABS,CPI_WEIGHTS,1.0.0"
+WEIGHTS_CODELIST = "CL_CPI_WEIGHTS_INDEX"
+ACCEPT_STRUCTURE = "application/vnd.sdmx.structure+json;version=1.0"
+
 # SDMX-JSON. The ABS also serves XML, but JSON round-trips losslessly through
 # storage.write_snapshot and matches what the other collectors return.
 ACCEPT = "application/vnd.sdmx.data+json"
@@ -119,14 +124,15 @@ def series_count(doc: dict[str, Any]) -> int | None:
 class _ABSCPICollector(Collector):
     """Shared fetch for the CPI dataflow. Subclasses pick the frequency slice."""
 
+    dataflow: str = DATAFLOW
     key: str
     #: How stale the newest observation may be before we treat the series as dead.
     #: Generous enough to survive normal release timing, tight enough to catch a
     #: retired dataflow — the CPI_M trap above was ten months stale.
     max_staleness_days: int
 
-    def fetch(self) -> tuple[Any, str, int | None]:
-        url = f"{DATAFLOW_BASE}/data/{DATAFLOW}/{self.key}"
+    def _get_slice(self) -> tuple[dict[str, Any], str, int]:
+        url = f"{DATAFLOW_BASE}/data/{self.dataflow}/{self.key}"
         resp = httpx.get(
             url,
             headers={"Accept": ACCEPT, "User-Agent": USER_AGENT},
@@ -138,7 +144,7 @@ class _ABSCPICollector(Collector):
 
         n = series_count(doc)
         if not n:
-            raise RuntimeError(f"ABS returned no series for {DATAFLOW} key {self.key!r}")
+            raise RuntimeError(f"ABS returned no series for {self.dataflow} key {self.key!r}")
 
         period, ends = latest_period(doc)
         stale_days = (datetime.now(UTC).date() - ends).days
@@ -147,12 +153,16 @@ class _ABSCPICollector(Collector):
             # serves history on demand, so nothing is lost by failing loudly, and
             # base.run() records the reason in the manifest.
             raise RuntimeError(
-                f"{DATAFLOW} key {self.key!r} looks retired: newest observation is "
+                f"{self.dataflow} key {self.key!r} looks retired: newest observation is "
                 f"{period} ({stale_days} days old, limit {self.max_staleness_days}). "
                 "Re-check the dataflow id against "
                 f"{DATAFLOW_BASE}/dataflow/ABS before trusting this series."
             )
 
+        return doc, url, n
+
+    def fetch(self) -> tuple[Any, str, int | None]:
+        doc, url, n = self._get_slice()
         return doc, url, n
 
 
@@ -172,3 +182,65 @@ class ABSQuarterlyCPICollector(_ABSCPICollector):
     key = KEY_QUARTERLY
     # A quarter prints about four weeks after it ends, so ~120 days is normal.
     max_staleness_days = 240
+
+
+class ABSCPIWeightsCollector(_ABSCPICollector):
+    """Published expenditure weights, plus the codelist that gives them a hierarchy.
+
+    The weights are what let component forecasts be aggregated to a headline path,
+    and they are useless without the hierarchy: the dataflow carries all four levels
+    of the CPI structure at once — 1 All groups, 11 groups, 33 sub-groups and 87
+    expenditure classes — each level summing to 100. Sum the lot indiscriminately
+    and you get 400. The level is not recoverable from the code, either: 20001
+    "Food and non-alcoholic beverages" is a group while 30002 "Bread and cereal
+    products" is a sub-group and 126670 "Insurance and financial services" is a
+    group again.
+
+    So this captures the codelist in the same snapshot. It is hierarchical —
+    40005 Bread -> 30002 Bread and cereal products -> 20001 Food -> 10001 All
+    groups — and depth from the root is the level. Keeping both in one vintage means
+    a weight can always be interpreted with the taxonomy that shipped alongside it,
+    which matters because the ABS restructures the basket at reweights.
+
+    Dimension order here is MEASURE.INDEX.REGION.FREQ — no TSEST, unlike the price
+    dataflow. Measure 1 is the percentage contribution to All groups, which is the
+    one worth having; 2 is a capital-city share that is uniformly 100 at the
+    national level, and 3 is a points contribution on a different base.
+    """
+
+    source = "abs_cpi_weights"
+    cadence = "yearly"
+    enabled = False
+    dataflow = DATAFLOW_WEIGHTS
+    key = f"..{REGION_AUSTRALIA}.Q"
+    # Reweighting is annual and publication lags: as at mid-2026 the newest weights
+    # were 2024-Q4, already ~19 months old and entirely normal. The limit is
+    # therefore generous — it exists to catch a retired dataflow, not a late
+    # reweight.
+    max_staleness_days = 900
+
+    def fetch(self) -> tuple[Any, str, int | None]:
+        doc, url, n = self._get_slice()
+
+        taxonomy_url = f"{DATAFLOW_BASE}/codelist/ABS/{WEIGHTS_CODELIST}"
+        resp = httpx.get(
+            taxonomy_url,
+            headers={"Accept": ACCEPT_STRUCTURE, "User-Agent": USER_AGENT},
+            timeout=TIMEOUT,
+            follow_redirects=True,
+        )
+        resp.raise_for_status()
+        taxonomy = resp.json()
+
+        codes = taxonomy.get("data", {}).get("codelists", [{}])[0].get("codes", [])
+        if not codes:
+            raise RuntimeError(f"{WEIGHTS_CODELIST} returned no codes from {taxonomy_url}")
+        if not any(c.get("parent") for c in codes):
+            # Without parents there is no hierarchy, and the weights cannot be
+            # summed safely. Fail rather than snapshot an unusable taxonomy.
+            raise RuntimeError(
+                f"{WEIGHTS_CODELIST} has no parent references; the CPI hierarchy "
+                "cannot be derived and weights would double-count"
+            )
+
+        return {"weights": doc, "taxonomy": taxonomy}, url, n

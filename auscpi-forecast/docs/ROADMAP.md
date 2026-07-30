@@ -44,7 +44,10 @@ three days running, untouched.
       CSV. Pass `--as-at` for a real-time information set (rule 3).
       Sample reality check: only ~26 monthly m/m observations and ~15 year-ended
       exist, which is the binding constraint on any monthly model.
-- [ ] Published CPI weights and the expenditure-class taxonomy
+- [x] Published CPI weights and the expenditure-class taxonomy — `ABS,CPI_WEIGHTS,1.0.0`
+      plus its hierarchical codelist, collected together. 87 expenditure classes
+      summing to 100, validated on read. Rents 6.613%, automotive fuel 3.347%,
+      food group 17.439% at the 2024-Q4 reweight.
 - [ ] `config/release_calendar.csv` upkeep — schedule moves to the fourth
       Wednesday from February 2027, do not hardcode it
 - [ ] RBA SMP forecasts entered as a benchmark series (manual entry is fine,

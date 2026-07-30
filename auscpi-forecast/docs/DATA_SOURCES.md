@@ -168,8 +168,45 @@ on previous year; INDEX `10001` All groups CPI, `999902` Trimmed Mean,
 `999901` All groups seasonally adjusted, `104122` excluding volatile items.
 REGION `50` is Australia; `1`–`8` are the capitals.
 
-`CPI_WEIGHTS,1.0.0` is the published expenditure-class weight set — the Phase 2
-item, not yet collected.
+**ABS CPI weights.** `ABS,CPI_WEIGHTS,1.0.0`, key `..50.Q` — dimension order is
+`MEASURE.INDEX.REGION.FREQ`, with **no TSEST**, unlike the price dataflow. Whole
+dataflow is ~31 KB gzipped. Reweighted annually; periods present are 2018-Q3
+through **2024-Q4**, so a ~19-month-old weight set is normal, not stale.
+
+Measure `1` is the percentage contribution to All groups — the basket share, and
+the one to use. Measure `2` is a capital-city share that is uniformly 100 at the
+national level; `3` is a points contribution on a different base.
+
+**The trap: every hierarchy level is in there at once, and each sums to 100.**
+
+| Level | Codes | Sums to |
+|---|---|---|
+| All groups | 1 | 100 |
+| Group | 11 | 100 |
+| Sub-group | 33 | 100 |
+| Expenditure class | 87 | 100 |
+| **Total if summed blindly** | **132** | **400** |
+
+The level cannot be read off the code — `20001` Food is a *group*, `30002` Bread
+and cereal products a *sub-group*, `126670` Insurance and financial services a
+*group* again. It comes from the `CL_CPI_WEIGHTS_INDEX` codelist, which is
+hierarchical (`40005` Bread → `30002` → `20001` → `10001`); depth from the root is
+the level. The collector captures that codelist in the same snapshot, because a
+weight is uninterpretable without the taxonomy that shipped with it, and
+`weights_at()` refuses any selection that does not sum to 100.
+
+Published weights at 2024-Q4, for the components this project models:
+
+| Component | Code | Weight |
+|---|---|---|
+| Housing (group) | `20003` | 21.385% |
+| Food and non-alcoholic beverages (group) | `20001` | 17.439% |
+| New dwelling purchase | `97559` | 7.593% |
+| **Rents** | `30014` | **6.613%** |
+| **Automotive fuel** | `40081` | **3.347%** |
+
+All 132 weight codes appear among the 166 `INDEX` codes in the monthly price
+dataflow, so weights join the price panel with no orphans.
 
 ---
 
