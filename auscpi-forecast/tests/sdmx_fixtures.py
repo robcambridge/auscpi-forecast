@@ -1,17 +1,31 @@
 """Shared SDMX-JSON fixtures.
 
-Not a test module. Kept separate so the parser and build tests do not import each
-other, and so the fake payload mirrors the real ABS encoding in exactly one place:
-dimension order MEASURE.INDEX.TSEST.REGION.FREQ, series keyed by dimension
-position, observations keyed by period position with the datum at element zero.
+Not a test module. Kept separate so the parser, build and forecast tests do not
+import each other, and so the fake payload mirrors the real ABS encoding in
+exactly one place: dimension order MEASURE.INDEX.TSEST.REGION.FREQ, series keyed
+by dimension position, observations keyed by period position with the datum at
+element zero.
+
+The index levels are compounded from the monthly rates rather than invented
+independently, because the real series satisfy that identity to within rounding
+and the index-projection model depends on it. A fixture where they disagreed
+would pass tests the real data would fail.
 """
 
 from __future__ import annotations
 
+from collections.abc import Callable, Sequence
+
 # MEASURE.INDEX.TSEST.REGION.FREQ, as positions into the dimension lists below.
-HEADLINE_YOY_KEY = "0:0:0:0:0"  # measure 3, index 10001, Original
-HEADLINE_MOM_KEY = "1:0:0:0:0"  # measure 2, index 10001, Original
-TRIMMED_YOY_KEY = "0:1:1:0:0"  # measure 3, index 999902, Seasonally Adjusted
+# MEASURE: 0 -> "3" year-ended, 1 -> "2" month-on-month, 2 -> "1" index numbers.
+# INDEX:   0 -> 10001 All groups,  1 -> 999902 Trimmed Mean.
+# TSEST:   0 -> "10" Original,     1 -> "20" Seasonally Adjusted.
+HEADLINE_YOY_KEY = "0:0:0:0:0"
+HEADLINE_MOM_KEY = "1:0:0:0:0"
+HEADLINE_LEVEL_KEY = "2:0:0:0:0"
+TRIMMED_YOY_KEY = "0:1:1:0:0"
+TRIMMED_MOM_KEY = "1:1:1:0:0"
+TRIMMED_LEVEL_KEY = "2:1:1:0:0"
 
 DIMENSIONS = [
     {
@@ -55,14 +69,46 @@ def sdmx(series: dict[str, dict], periods: list[str], *, plural: bool = True) ->
     return {"data": data}
 
 
-def all_targets_doc(periods: list[str], *, yoy: float = 3.8) -> dict:
-    """A doc carrying all three track_record targets over `periods`."""
+def observations(values: Sequence[float | None]) -> dict:
+    return {"observations": {str(i): [v] for i, v in enumerate(values)}}
+
+
+def compound(rates: Sequence[float], start: float = 100.0) -> list[float]:
+    """Index levels implied by a monthly rate path, first level = `start`."""
+    levels = [start]
+    for rate in rates[1:]:
+        levels.append(levels[-1] * (1.0 + rate / 100.0))
+    return levels
+
+
+def all_targets_doc(
+    periods: list[str],
+    *,
+    yoy: float = 3.8,
+    trimmed_yoy: float = 3.6,
+    mom: Callable[[int], float] | None = None,
+    trimmed_mom: Callable[[int], float] | None = None,
+) -> dict:
+    """A doc carrying all three targets plus their m/m and index companions.
+
+    `mom` maps an observation position to a monthly rate; the default is flat.
+    Pass a varying one where a rule must be shown to respond to seasonality.
+    """
     n = len(periods)
+    mom_fn = mom or (lambda _i: 0.3)
+    trimmed_fn = trimmed_mom or (lambda _i: 0.25)
+
+    headline_rates = [mom_fn(i) for i in range(n)]
+    trimmed_rates = [trimmed_fn(i) for i in range(n)]
+
     return sdmx(
         {
-            HEADLINE_YOY_KEY: {"observations": {str(i): [yoy] for i in range(n)}},
-            HEADLINE_MOM_KEY: {"observations": {str(i): [0.3] for i in range(n)}},
-            TRIMMED_YOY_KEY: {"observations": {str(i): [3.6] for i in range(n)}},
+            HEADLINE_YOY_KEY: observations([yoy] * n),
+            HEADLINE_MOM_KEY: observations(headline_rates),
+            HEADLINE_LEVEL_KEY: observations(compound(headline_rates)),
+            TRIMMED_YOY_KEY: observations([trimmed_yoy] * n),
+            TRIMMED_MOM_KEY: observations(trimmed_rates),
+            TRIMMED_LEVEL_KEY: observations(compound(trimmed_rates)),
         },
         periods,
     )

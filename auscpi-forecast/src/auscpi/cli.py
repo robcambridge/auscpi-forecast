@@ -180,8 +180,9 @@ def forecast(
                 "-" if r.benchmark_point is None else f"{r.benchmark_point:+.2f}",
             )
         console.print(table)
+        version = path.records[0].model_version if path.records else "?"
         console.print(
-            f"[dim]model {path.model} v0-naive · origin {path.origin} · "
+            f"[dim]model {path.model} {version} · origin {path.origin} · "
             f"information cutoff {path.information_cutoff}[/dim]"
         )
 

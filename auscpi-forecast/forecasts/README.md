@@ -33,21 +33,39 @@ starting at n=1 with a weak model beats one starting at n=0 with a good one.
 | Target | Model | Benchmark |
 |---|---|---|
 | `headline_mom` | `seasonal_naive` — same calendar month, most recent year it was observed | `mean_mom` — 12-month mean |
-| `headline_yoy` | `atkeson_ohanian` — annualised mean of the last 12 m/m | `random_walk` — carry the last year-ended rate |
-| `trimmed_mean_yoy` | `atkeson_ohanian` | `random_walk` |
+| `headline_yoy` | `index_projection` — project the index, then take the year-ended ratio | `random_walk` — carry the last year-ended rate |
+| `trimmed_mean_yoy` | `index_projection` | `random_walk` |
 
 The model and the benchmark are always different rules; pairing a rule against
 itself would report skill of exactly zero forever and look like diligence.
 
+### Why the year-ended paths project the index
+
+A year-ended rate is a ratio of two index levels twelve months apart, so most of
+it is already observed. On data through June 2026, the July 2026 rate needs
+eleven monthly movements the ABS has published and one that has not happened.
+Those known movements roll out of the annual window on a fixed schedule that is
+knowable today, and carrying the last rate flat throws all of it away.
+
+The arithmetic is verified rather than assumed: recomputing year-ended rates from
+the published index reproduces the published rates to within 0.048pp, half the
+0.1 step the ABS rounds to.
+
 Known weaknesses, so nobody has to discover them:
 
-- **The year-ended paths are flat.** `atkeson_ohanian` and `random_walk` both
-  carry one number to every horizon, so the h=12 point equals the h=0 point.
-  Only `headline_mom` varies with horizon. Deriving the year-ended path from a
-  projected index is the right answer and is not attempted yet.
-- **The sample is ~26 monthly observations** of m/m and fewer year-ended, because
-  monthly collection only widened to the full basket recently. Nothing here is
-  statistically meaningful, and no claim of skill should be made from it.
+- **The driver is a flat 12-month mean**, so the path converges on the annualised
+  recent mean at long horizons — Atkeson–Ohanian by another route. Any value over
+  that benchmark is concentrated at short horizons where the base dominates, which
+  is the honest place to expect it.
+- **It is weakest exactly where Australia needs it most.** Administered prices
+  reset on 1 July, and the July 2025 index rose 1.31% against a 0.31% average. A
+  path made now therefore marks July 2026 down about a point on the base effect,
+  when much of that rise is an annual reset likely to recur. The truth sits
+  between this projection and the flat carry. Closing that gap needs the
+  administered-price calendar, not a better driver.
+- **The sample is ~27 monthly index observations.** Nothing here is statistically
+  meaningful, and no claim of skill should be made from it.
+- **No uncertainty bands.** Quantiles by horizon come later.
 
 ## Workflow
 

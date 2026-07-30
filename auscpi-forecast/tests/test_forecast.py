@@ -4,9 +4,16 @@ from datetime import date
 
 import pandas as pd
 import pytest
-from sdmx_fixtures import HEADLINE_MOM_KEY, HEADLINE_YOY_KEY, TRIMMED_YOY_KEY, sdmx
+from sdmx_fixtures import (
+    HEADLINE_LEVEL_KEY,
+    HEADLINE_MOM_KEY,
+    HEADLINE_YOY_KEY,
+    all_targets_doc,
+    observations,
+    sdmx,
+)
 
-from auscpi.forecast import DEFAULT_PAIRS, add_months, forecast_path
+from auscpi.forecast import DEFAULT_PAIRS, add_months, forecast_path, project_levels
 from auscpi.parsers.abs_cpi import parse_sdmx_json
 
 # Two years of monthly history so seasonal naive has a same-month value to find.
@@ -16,19 +23,12 @@ PERIODS = [f"{y}-{m:02d}" for y in (2024, 2025) for m in range(1, 13)] + [
 
 
 def panel_with_history() -> pd.DataFrame:
-    n = len(PERIODS)
-    # m/m rises through the calendar year so seasonal naive picks a distinctive
-    # value per month rather than a constant that any rule would reproduce.
-    mom = {str(i): [round(0.1 * (i % 12), 3)] for i in range(n)}
+    # Seasonal shape (so seasonal naive picks a distinctive value per month) plus a
+    # year-on-year drift. A rate pattern that is EXACTLY 12-periodic makes the
+    # year-ended rate genuinely constant — every 12-month window compounds to the
+    # same product — which would hide whether a rule responds to base effects.
     return parse_sdmx_json(
-        sdmx(
-            {
-                HEADLINE_MOM_KEY: {"observations": mom},
-                HEADLINE_YOY_KEY: {"observations": {str(i): [3.5] for i in range(n)}},
-                TRIMMED_YOY_KEY: {"observations": {str(i): [3.0] for i in range(n)}},
-            },
-            PERIODS,
-        )
+        all_targets_doc(PERIODS, mom=lambda i: round(0.1 * (i % 12) + 0.05 * (i // 12), 3))
     )
 
 
@@ -113,18 +113,23 @@ def test_seasonal_naive_only_ever_looks_backwards():
     assert path.records[0].point == pytest.approx(float(observed.loc["2025-07"]), abs=1e-6)
 
 
-def test_year_ended_default_path_is_flat_and_that_is_documented():
+def test_year_ended_default_is_the_index_projection_and_varies_by_horizon():
     path = forecast_path(
         "headline_yoy", horizons=range(13), today=date(2026, 7, 30), panel=panel_with_history()
     )
-    assert len({r.point for r in path.records}) == 1
-    assert path.model == "atkeson_ohanian"
+    assert path.model == "index_projection"
     assert path.benchmark == "random_walk"
+    # The old flat carry-forward gave one number for every horizon. Base effects
+    # rolling out of the annual window must move it.
+    assert len({r.point for r in path.records}) > 1
 
 
-def test_model_version_is_recorded():
-    path = forecast_path("headline_yoy", today=date(2026, 7, 30), panel=panel_with_history())
-    assert all(r.model_version == "v0-naive" for r in path.records)
+def test_model_version_distinguishes_the_projection_from_the_naive_rules():
+    projected = forecast_path("headline_yoy", today=date(2026, 7, 30), panel=panel_with_history())
+    assert all(r.model_version == "v1-index-projection" for r in projected.records)
+
+    naive = forecast_path("headline_mom", today=date(2026, 7, 30), panel=panel_with_history())
+    assert all(r.model_version == "v0-naive" for r in naive.records)
 
 
 def test_note_carries_the_release_date_when_the_calendar_knows_it():
@@ -143,15 +148,164 @@ def test_unknown_target_and_unknown_rule_raise():
         forecast_path("headline_mom", model="lstm", today=date(2026, 7, 30), panel=panel)
 
 
-def test_nan_history_does_not_poison_the_path():
-    """Year-ended series are ragged at the start; NaN must be dropped, not carried."""
+def test_projection_reproduces_the_year_ended_identity_on_observed_months():
+    """The validation the model rests on: y/y is a ratio of index levels.
+
+    With a constant 0.3% monthly rate, twelve months compound to
+    (1.003**12 - 1) * 100, and the projection must return exactly that rather
+    than something merely close.
+    """
+    panel = parse_sdmx_json(all_targets_doc(PERIODS, mom=lambda _i: 0.3))
+    path = forecast_path("headline_yoy", horizons=[0], today=date(2026, 7, 30), panel=panel)
+    expected = ((1.003**12) - 1) * 100
+    assert path.records[0].point == pytest.approx(expected, abs=1e-3)
+
+
+def test_projection_carries_known_base_effects_at_h0():
+    """At h=0 only one month is forecast; the other eleven are already observed.
+
+    A step change in the level twelve months back must therefore move the h=0
+    point, which is exactly what carrying the last y/y flat cannot do.
+    """
+    panel = parse_sdmx_json(all_targets_doc(PERIODS, mom=lambda i: 5.0 if i == 18 else 0.2))
+    projected = forecast_path(
+        "headline_yoy", horizons=range(13), today=date(2026, 7, 30), panel=panel
+    )
+    flat = forecast_path(
+        "headline_yoy",
+        model="random_walk",
+        benchmark="target_midpoint",
+        horizons=range(13),
+        today=date(2026, 7, 30),
+        panel=panel,
+    )
+    assert len({r.point for r in flat.records}) == 1
+    assert len({r.point for r in projected.records}) > 1
+
+
+def test_projection_needs_thirteen_index_levels():
+    short = [f"2026-{m:02d}" for m in range(1, 7)]
+    panel = parse_sdmx_json(all_targets_doc(short))
+    with pytest.raises(ValueError, match="index levels"):
+        forecast_path("headline_yoy", horizons=[0], today=date(2026, 7, 30), panel=panel)
+
+
+def test_project_levels_leaves_observed_months_untouched():
+    from auscpi.forecast import build_history
+
+    panel = panel_with_history()
+    hist = build_history(panel, "headline_yoy")
+    levels = project_levels(hist, "2027-07")
+
+    observed = hist.level.dropna()
+    for period, value in observed.items():
+        assert levels[str(period)] == pytest.approx(float(value))
+    # And it extended past the last observation rather than stopping there.
+    assert "2027-07" in levels
+    assert "2026-06" in levels
+
+
+def test_projection_uses_unrounded_rates_from_the_level_series():
+    """Published m/m is rounded to 0.1; compounding it would drift by tenths.
+
+    The level series here implies 0.25%/month while the published m/m column says
+    0.2. If the projection read the published column the twelve-month figure would
+    come out near 2.43 instead of 3.04.
+    """
     n = len(PERIODS)
-    yoy = {str(i): [None if i < 14 else 3.5] for i in range(n)}
+    rates = [0.25] * n
+    from sdmx_fixtures import compound
+
     panel = parse_sdmx_json(
         sdmx(
             {
-                HEADLINE_MOM_KEY: {"observations": {str(i): [0.3] for i in range(n)}},
-                HEADLINE_YOY_KEY: {"observations": yoy},
+                HEADLINE_YOY_KEY: observations([3.0] * n),
+                HEADLINE_MOM_KEY: observations([0.2] * n),  # deliberately rounded
+                HEADLINE_LEVEL_KEY: observations(compound(rates)),
+            },
+            PERIODS,
+        )
+    )
+    point = (
+        forecast_path("headline_yoy", horizons=[0], today=date(2026, 7, 30), panel=panel)
+        .records[0]
+        .point
+    )
+    assert point == pytest.approx(((1.0025**12) - 1) * 100, abs=1e-3)
+
+
+def test_index_projection_is_rejected_for_a_month_on_month_target():
+    with pytest.raises(ValueError, match="year-ended"):
+        forecast_path(
+            "headline_mom",
+            model="index_projection",
+            today=date(2026, 7, 30),
+            panel=panel_with_history(),
+        )
+
+
+def test_history_records_whether_the_series_is_seasonally_adjusted():
+    from auscpi.forecast import build_history
+
+    panel = panel_with_history()
+    assert build_history(panel, "trimmed_mean_yoy").seasonally_adjusted is True
+    assert build_history(panel, "headline_yoy").seasonally_adjusted is False
+
+
+def test_a_seasonal_naive_driver_would_be_degenerate():
+    """Why the driver is a mean: replicating last year's rates cancels base effects.
+
+    Projecting the previous twelve monthly rates forward gives
+    level(m) = level(T) * level(m-12) / level(T-12), so the ratio
+    level(m)/level(m-12) is constant and the projection becomes a year-ended random
+    walk. This pins the algebra so nobody "improves" the driver back into it.
+    """
+    from auscpi.forecast import History, _monthly_from_levels, _same_month_or_mean, add_months
+
+    panel = panel_with_history()
+    from auscpi.forecast import build_history
+
+    hist: History = build_history(panel, "headline_yoy")
+
+    level = hist.level.dropna()
+    implied = _monthly_from_levels(level)
+    last = str(level.index[-1])
+    future = [add_months(last, i) for i in range(1, 14)]
+
+    # Project using seasonal naive, the tempting choice.
+    rates = _same_month_or_mean(implied, future)
+    levels = {str(k): float(v) for k, v in level.items()}
+    running = levels[last]
+    for month, rate in zip(future, rates, strict=True):
+        running *= 1 + rate / 100
+        levels[month] = running
+
+    yoy = [
+        (levels[m] / levels[add_months(m, -12)] - 1) * 100
+        for m in future[:12]
+        if add_months(m, -12) in levels
+    ]
+    assert len({round(v, 6) for v in yoy}) == 1, "seasonal naive should collapse to a constant"
+
+    # The shipped mean driver must NOT collapse.
+    projected = forecast_path(
+        "headline_yoy", horizons=range(13), today=date(2026, 7, 30), panel=panel
+    )
+    assert len({r.point for r in projected.records}) > 1
+
+
+def test_nan_history_does_not_poison_the_path():
+    """Year-ended series are ragged at the start; NaN must be dropped, not carried."""
+    from sdmx_fixtures import compound
+
+    n = len(PERIODS)
+    rates = [0.3] * n
+    panel = parse_sdmx_json(
+        sdmx(
+            {
+                HEADLINE_MOM_KEY: observations(rates),
+                HEADLINE_LEVEL_KEY: observations(compound(rates)),
+                HEADLINE_YOY_KEY: observations([None if i < 14 else 3.5 for i in range(n)]),
             },
             PERIODS,
         )
