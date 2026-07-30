@@ -141,11 +141,35 @@ on the same page; match on "lodge" to avoid them.
 Run monthly with `auscpi collect nsw_rental_bonds`; capture the history to
 January 2022 with `auscpi backfill-bonds` (~35 MB, one-time).
 
-**ABS Data API.** `https://data.api.abs.gov.au/rest/`. Confirm the dataflow
-identifier for the Monthly CPI publication against
-`https://data.api.abs.gov.au/rest/dataflow` before writing the parser — the
-identifier in `collectors/abs_cpi.py` is a placeholder and the collector is
-disabled until it is verified.
+**ABS Data API.** `https://data.api.abs.gov.au/rest/`. No key, CC-BY.
+
+Dataflow identifier **confirmed 2026-07-30: `ABS,CPI,2.0.0`** carries both
+monthly and quarterly. `GET /rest/dataflow/ABS` lists four CPI flows — `CPI`
+2.0.0, `CPI_M` 1.2.0, `CPI_Q` 1.0.0, `CPI_WEIGHTS` 1.0.0.
+
+**Do not use `CPI_M`.** It is the retired monthly *indicator*: its last
+observation is 2025-09, it has 39 index values rather than 166, and it is no
+longer updated. Version 1.0.0 of it — the old placeholder in this repo — does not
+exist at all and 404s with "Could not find Dataflow and/or DSD". A resolvable but
+frozen dataflow is the more dangerous of the two failures, because the pipeline
+stays green while the target series stops moving, so `abs_cpi.py` refuses any
+slice whose newest observation is older than its staleness limit.
+
+Key order is `MEASURE.INDEX.TSEST.REGION.FREQ`; an empty slot is a wildcard:
+
+| Slice | Key | Series | Gzipped | Coverage |
+|---|---|---|---|---|
+| National monthly | `...50.M` | 1,191 | ~148 KB | 106 periods, 2017-09 → 2026-06 |
+| National quarterly | `...50.Q` | 396 | ~172 KB | 312 periods, 1948-Q3 → 2026-Q2 |
+| All regions monthly | `....M` | 8,055 | ~937 KB | six times the weight, not collected |
+
+Useful ids: MEASURE `1` index numbers, `2` change on previous period, `3` change
+on previous year; INDEX `10001` All groups CPI, `999902` Trimmed Mean,
+`999901` All groups seasonally adjusted, `104122` excluding volatile items.
+REGION `50` is Australia; `1`–`8` are the capitals.
+
+`CPI_WEIGHTS,1.0.0` is the published expenditure-class weight set — the Phase 2
+item, not yet collected.
 
 ---
 

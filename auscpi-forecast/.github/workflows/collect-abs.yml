@@ -1,0 +1,49 @@
+name: collect-abs
+
+# The target series. Separate from collect.yml because that job is daily and the
+# CPI prints monthly, and separate from collect-monthly.yml because the timing is
+# different: GitHub schedules are per-workflow, not per-job.
+#
+# Runs on the 1st. Reference month N is published on the last Wednesday of N+1
+# (the fourth Wednesday from February 2027), so the 1st of N+2 is comfortably
+# after the print without hardcoding the release rule — see CLAUDE.md rule 6 and
+# config/release_calendar.csv. Quarterly is collected on the same run; it simply
+# does not change most months, and the collector refuses a stale series rather
+# than snapshotting a dead one.
+#
+# Safe in Actions: the ABS Data API is open, keyless and CC-BY, so a datacentre
+# IP is fine. Naming the sources explicitly runs them even though `enabled = False`
+# keeps them out of the daily `collect --all`.
+
+on:
+  schedule:
+    - cron: "0 20 1 * *"    # 1st of the month, 06:00 AEST / 07:00 AEDT
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install -e .
+
+      - name: Collect monthly CPI
+        run: auscpi collect abs_cpi_monthly
+
+      - name: Collect quarterly CPI
+        run: auscpi collect abs_cpi_quarterly
+
+      - name: Commit snapshots
+        run: |
+          git config user.name  "auscpi-bot"
+          git config user.email "actions@github.com"
+          git add data/raw
+          git diff --staged --quiet || git commit -m "data: abs cpi $(date -u +%Y-%m)"
+          git push

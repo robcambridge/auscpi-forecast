@@ -11,11 +11,30 @@ sources:
     basket_weight_pct: 3.5
 
   abs_cpi_monthly:
-    enabled: false             # enable once the dataflow id is confirmed
+    enabled: false             # dataflow CONFIRMED (ABS,CPI,2.0.0) and working.
+                               # Excluded from the DAILY `collect --all` because it is
+                               # monthly — runs via .github/workflows/collect-abs.yml.
     cadence: monthly
     run_after: release_calendar
     backfillable: true
     expenditure_classes: [all]
+    role: target               # this is the series being forecast
+    note: >-
+      ABS,CPI,2.0.0 key ...50.M — national, monthly, all 166 index values
+      including 10001 All groups CPI and 999902 Trimmed Mean. The old
+      ABS,CPI_M,* indicator is retired and stops at 2025-09; do not use it.
+
+  abs_cpi_quarterly:
+    enabled: false             # same dataflow, quarterly slice. See collect-abs.yml.
+    cadence: quarterly
+    backfillable: true
+    expenditure_classes: [all]
+    role: target
+    note: >-
+      ABS,CPI,2.0.0 key ...50.Q — history back to 1948-Q3, which is the long
+      sample the random-walk and Atkeson-Ohanian benchmarks need. Re-referenced
+      in Dec 2025 to September month 2025 = 100.00; apply conversion factors
+      before mixing vintages.
 
   sqm_rents:
     enabled: false             # RULED OUT — SQM's Terms of Service prohibit automated

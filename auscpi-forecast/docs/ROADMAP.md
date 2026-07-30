@@ -28,7 +28,9 @@ Only goal: data starts accumulating today.
       No longer the day-one priority: unlike asking rents this backfills to
       Jan 2021, so nothing is lost by building it after the grocery scraper.
 - [ ] Grocery basket scraper — fixed ~200 SKUs mapped to expenditure classes
-- [ ] Confirm the ABS dataflow id, enable the ABS collector
+- [x] Confirm the ABS dataflow id, enable the ABS collector — `ABS,CPI,2.0.0`,
+      monthly and quarterly national slices, on collect-abs.yml. The old
+      `CPI_M` indicator is retired at 2025-09 and must not be used.
 - [ ] Backfill FuelCheck history from data.nsw.gov.au archives
 
 **Done when:** `auscpi health` shows every source fetched within its cadence,
