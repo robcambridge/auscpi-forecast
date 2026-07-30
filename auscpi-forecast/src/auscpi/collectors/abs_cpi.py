@@ -57,13 +57,13 @@ last-Wednesday release. Naming a source explicitly ignores the flag:
 
 from __future__ import annotations
 
-import calendar
 from datetime import UTC, date, datetime
 from typing import Any
 
 import httpx
 
 from auscpi.collectors.base import Collector
+from auscpi.periods import period_end
 
 DATAFLOW_BASE = "https://data.api.abs.gov.au/rest"
 DATAFLOW = "ABS,CPI,2.0.0"
@@ -99,22 +99,6 @@ def observation_periods(doc: dict[str, Any]) -> list[str]:
         if dim["id"] in ("TIME_PERIOD", "TIME"):
             return [v["id"] for v in dim["values"]]
     return [v["id"] for v in obs[0]["values"]]
-
-
-def period_end(period: str) -> date:
-    """Last day covered by an SDMX period id: '2026-06' or '2026-Q2'.
-
-    Compared against today to detect a series that has stopped being updated, so
-    it must be the END of the period — using the start would overstate staleness
-    by up to a quarter and cause false alarms.
-    """
-    year_str, _, rest = period.partition("-")
-    year = int(year_str)
-    if rest[:1].upper() == "Q":
-        month = int(rest[1:]) * 3
-    else:
-        month = int(rest)
-    return date(year, month, calendar.monthrange(year, month)[1])
 
 
 def latest_period(doc: dict[str, Any]) -> tuple[str, date]:

@@ -3,6 +3,7 @@
 auscpi collect --all          run every enabled collector
 auscpi collect fuelcheck      run one
 auscpi backfill-bonds         capture the NSW rental bond history
+auscpi build                  rebuild data/curated from data/raw
 auscpi health                 when did each source last succeed?
 auscpi log-forecast ...       append a row to the public track record
 auscpi score                  error vs benchmark, for settled forecasts
@@ -53,6 +54,50 @@ def collect(
 
     if failures:
         raise typer.Exit(code=1)
+
+
+@app.command()
+def build(
+    as_at: str = typer.Option(
+        None,
+        "--as-at",
+        help='Build from the information set as at this instant, e.g. "2026-06-30". '
+        "Omitted, the newest snapshot is used.",
+    ),
+    strict: bool = typer.Option(
+        False, "--strict", help="Fail if a source has no snapshot yet, rather than skipping it."
+    ),
+) -> None:
+    """Rebuild data/curated from data/raw. Safe to re-run; output is disposable."""
+    from auscpi.build import build_all
+
+    cutoff = None
+    if as_at:
+        cutoff = datetime.fromisoformat(as_at)
+        if cutoff.tzinfo is None:
+            cutoff = cutoff.replace(tzinfo=UTC)
+
+    results = build_all(as_at=cutoff, strict=strict)
+    if not results:
+        console.print(
+            "[yellow]nothing to build[/yellow] — no snapshots yet. "
+            "Try `auscpi collect abs_cpi_monthly`."
+        )
+        raise typer.Exit()
+
+    table = Table("source", "rows", "periods", "latest", "vintage (UTC)")
+    for r in results:
+        table.add_row(
+            r.source,
+            f"{r.rows:,}",
+            str(r.periods),
+            r.latest_period,
+            r.vintage[:19].replace("T", " "),
+        )
+    console.print(table)
+    for r in results:
+        for out in r.outputs:
+            console.print(f"  [green]wrote[/green] {out}")
 
 
 @app.command("backfill-bonds")

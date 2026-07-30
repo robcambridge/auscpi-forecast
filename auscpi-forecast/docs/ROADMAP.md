@@ -39,7 +39,11 @@ three days running, untouched.
 ## Phase 2 — benchmarks and the first public path (weeks 2–3)
 
 - [x] Naive benchmarks: random walk, seasonal naive, Atkeson–Ohanian, midpoint
-- [ ] Parse ABS monthly CPI into an expenditure-class panel
+- [x] Parse ABS monthly CPI into an expenditure-class panel — `auscpi build`
+      writes `data/curated/abs_cpi_{monthly,quarterly}.parquet` plus a targets
+      CSV. Pass `--as-at` for a real-time information set (rule 3).
+      Sample reality check: only ~26 monthly m/m observations and ~15 year-ended
+      exist, which is the binding constraint on any monthly model.
 - [ ] Published CPI weights and the expenditure-class taxonomy
 - [ ] `config/release_calendar.csv` upkeep — schedule moves to the fourth
       Wednesday from February 2027, do not hardcode it
