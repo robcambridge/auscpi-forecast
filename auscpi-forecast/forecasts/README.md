@@ -33,8 +33,8 @@ starting at n=1 with a weak model beats one starting at n=0 with a good one.
 | Target | Model | Benchmark |
 |---|---|---|
 | `headline_mom` | `seasonal_naive` — same calendar month, most recent year it was observed | `mean_mom` — 12-month mean |
-| `headline_yoy` | `index_projection` — project the index, then take the year-ended ratio | `random_walk` — carry the last year-ended rate |
-| `trimmed_mean_yoy` | `index_projection` | `random_walk` |
+| `headline_yoy` | `seasonal_index_projection` — project the adjusted index, restore the published seasonal shape, take the year-ended ratio | `random_walk` — carry the last year-ended rate |
+| `trimmed_mean_yoy` | `index_projection` — as above without the seasonal step, the series being already adjusted | `random_walk` |
 
 The model and the benchmark are always different rules; pairing a rule against
 itself would report skill of exactly zero forever and look like diligence.
@@ -51,20 +51,38 @@ The arithmetic is verified rather than assumed: recomputing year-ended rates fro
 the published index reproduces the published rates to within 0.048pp, half the
 0.1 step the ABS rounds to.
 
+### Where the seasonality comes from
+
+Not fitted here. The ABS publishes both an Original headline index (`10001`) and
+its own seasonally adjusted version (`999901`), so the ratio between them *is* a
+seasonal factor, estimated by the ABS with far more information than 27
+observations could support. It is stable: per-month spreads across the sample run
+0.00002–0.0005. April sits +0.57% above June, December +0.49%, July +0.41%,
+November −0.22%.
+
+The projection therefore grows the *adjusted* index at a flat trend — that series
+has no seasonality left to get wrong — and multiplies the published factor back on.
+Compounding a flat rate on the Original series instead would silently give every
+future month average seasonality.
+
 Known weaknesses, so nobody has to discover them:
 
-- **The driver is a flat 12-month mean**, so the path converges on the annualised
-  recent mean at long horizons — Atkeson–Ohanian by another route. Any value over
-  that benchmark is concentrated at short horizons where the base dominates, which
-  is the honest place to expect it.
-- **It is weakest exactly where Australia needs it most.** Administered prices
-  reset on 1 July, and the July 2025 index rose 1.31% against a 0.31% average. A
-  path made now therefore marks July 2026 down about a point on the base effect,
-  when much of that rise is an annual reset likely to recur. The truth sits
-  between this projection and the flat carry. Closing that gap needs the
-  administered-price calendar, not a better driver.
-- **The sample is ~27 monthly index observations.** Nothing here is statistically
-  meaningful, and no claim of skill should be made from it.
+- **The driver is a flat trend**, so the path converges on the annualised recent
+  trend at long horizons — Atkeson–Ohanian by another route. The seasonal
+  correction cancels there too, appearing in both numerator and denominator once
+  the base is itself projected: live, it moves h=0 by +0.40pp and h=12 by
+  −0.03pp. Any value over the benchmark is concentrated at short horizons where
+  the base is observed.
+- **The year-specific part of 1 July is untouched, and it is large.** Decomposing
+  July 2025: the Original index rose 1.31%, of which ~0.41pp is the recurring
+  July factor and ~0.90pp was that year's own administered movement. July 2024
+  was adjusted −0.16%. So the non-seasonal July component swung more than a point
+  between consecutive years, and no seasonal factor can know the direction. Only
+  the determinations can — announced months ahead with quantified effects and
+  dates. That gap is worth more than any further refinement here.
+- **The sample is ~27 monthly index observations**, so each seasonal factor rests
+  on about two. Nothing here is statistically meaningful, and no claim of skill
+  should be made from it.
 - **No uncertainty bands.** Quantiles by horizon come later.
 
 ## Workflow

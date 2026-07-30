@@ -32,24 +32,31 @@ it is the wrong input to a compounding calculation.
 
 WHAT IS STILL WEAK:
 
-  - The monthly driver is a 12-month mean. The base effects are exact arithmetic;
-    the months not yet observed are a flat guess. See project_levels on why a
-    seasonal-naive driver is not merely worse but degenerate here.
-  - Consequently the path converges on the annualised recent mean at long
-    horizons, which is Atkeson-Ohanian by another route. The value added over that
-    benchmark is concentrated at short horizons, where the base dominates — which
-    is the honest place to expect it.
-  - THE DRIVER IS WORST EXACTLY WHERE AUSTRALIA NEEDS IT MOST. A flat mean
-    replaces every future month with the same number, but Australian administered
-    prices reset on 1 July — electricity determinations take effect then, and the
-    July 2025 index rose 1.31% against a 0.31% average. So a path made now marks
-    July 2026 down by about a point on the base effect, when much of that rise is
-    an annual reset likely to recur. The true answer sits between this projection
-    and the flat carry, and neither knows which. Reading the determinations is the
-    only way to close that gap: it is what Phase 5 exists for, and it is why the
-    administered-price calendar matters more than any refinement of this driver.
-  - The sample is ~27 monthly index observations. Nothing here is statistically
-    meaningful, and no claim of skill should be made from it.
+  - The monthly driver is a flat trend with the published seasonal shape put back
+    on. The base effects are exact arithmetic; the months not yet observed are a
+    trend guess. See project_levels on why a seasonal-naive driver is not merely
+    worse but degenerate here.
+  - Consequently the path converges on the annualised recent trend at long
+    horizons, which is Atkeson-Ohanian by another route. The seasonal correction
+    also cancels out there, appearing in both numerator and denominator once the
+    base is itself projected — measured live, it moves h=0 by +0.40pp and h=12 by
+    -0.03pp. The value added is concentrated at short horizons where the base is
+    observed, which is the honest place to expect it.
+  - WHAT REMAINS AROUND 1 JULY IS THE YEAR-SPECIFIC PART, AND IT IS LARGE.
+    Seasonality is now taken from the published adjustment (see seasonal_factors),
+    which handles the *recurring* calendar shape. It does not handle the rest, and
+    decomposing July 2025 shows how much rest there is: the Original index rose
+    1.31%, of which roughly 0.41pp is the recurring July factor and about 0.90pp
+    was that year's own administered movement. July 2024 was adjusted -0.16%. So
+    the non-seasonal July component swung by more than a point between two
+    consecutive years, and no seasonal factor can know which way it goes next.
+    Only the determinations can — announced months ahead, with quantified effects
+    and effective dates. That is Phase 5, and it remains worth more than any
+    further refinement of this driver.
+  - The sample is ~27 monthly index observations, so the seasonal factors rest on
+    about two observations per calendar month. They are the ABS's estimates rather
+    than ours, which is why they are usable at all, but nothing here is
+    statistically meaningful and no claim of skill should be made from it.
   - No uncertainty bands. Quantiles by horizon are Phase 6.
   - Every point still carries a benchmark and a horizon, and the model is never
     logged against itself — see below.
@@ -60,6 +67,7 @@ from __future__ import annotations
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
+from statistics import fmean
 
 import pandas as pd
 
@@ -95,15 +103,19 @@ def add_months(reference_month: str, n: int) -> str:
 class History:
     """Everything a path rule may read, for one target.
 
-    `seasonally_adjusted` is carried because it changes which naive monthly rule
-    is defensible: seasonal naive on an SA series is close to meaningless, the
-    seasonality having already been taken out.
+    `seasonally_adjusted` decides which monthly rule is defensible: on a series the
+    ABS has already adjusted there is no seasonality left to model, so a flat mean
+    is right and a seasonal correction would double-count.
     """
 
     own: pd.Series  # the target's own published history
     mom: pd.Series  # published month-on-month companion
     level: pd.Series  # index level companion
     seasonally_adjusted: bool
+    #: The ABS's own seasonally adjusted counterpart of `level`, when the target is
+    #: an Original series. None when the target is already adjusted, or when the
+    #: counterpart is missing from the vintage.
+    sa_level: pd.Series | None = None
 
 
 #: A path rule: given the history, return one value per requested reference month.
@@ -150,6 +162,36 @@ def _monthly_from_levels(level: pd.Series) -> pd.Series:
     return pd.Series(rates, index=observed.index[1:], name="mom_from_level")
 
 
+def _month_number(period: str) -> int | None:
+    """Calendar month of a monthly period id, or None if it is not monthly."""
+    _, _, rest = period.partition("-")
+    return None if rest[:1].upper() == "Q" else int(rest)
+
+
+def seasonal_factors(original: pd.Series, sa: pd.Series) -> dict[int, float]:
+    """Original / seasonally-adjusted, averaged per calendar month.
+
+    This is the ABS's own seasonal estimate, not one fitted here. Fitting
+    seasonality to ~27 observations would be close to noise, whereas the ABS
+    adjusts with far more information; the ratio of the two published series
+    exposes it directly.
+
+    The factor also absorbs the base difference between the two series — they are
+    referenced differently, so the ratio sits near 0.96 rather than 1.0 — which is
+    why it is applied multiplicatively to a projected adjusted level rather than
+    being interpreted as a percentage on its own.
+    """
+    shared = [p for p in original.index if p in sa.index]
+    grouped: dict[int, list[float]] = {}
+    for period in shared:
+        month = _month_number(str(period))
+        adjusted = float(sa.loc[period])
+        if month is None or not adjusted:
+            continue
+        grouped.setdefault(month, []).append(float(original.loc[period]) / adjusted)
+    return {month: fmean(values) for month, values in grouped.items()}
+
+
 def _months_between_inclusive(start: str, end: str) -> list[str]:
     out: list[str] = []
     cursor = start
@@ -159,7 +201,7 @@ def _months_between_inclusive(start: str, end: str) -> list[str]:
     return out
 
 
-def project_levels(hist: History, through: str) -> dict[str, float]:
+def project_levels(hist: History, through: str, *, seasonal: bool = False) -> dict[str, float]:
     """Observed index levels, extended to `through` by compounding a monthly path.
 
     THE DRIVER IS A MEAN, AND SEASONAL NAIVE WOULD BE WRONG HERE — not merely
@@ -201,6 +243,13 @@ def project_levels(hist: History, through: str) -> dict[str, float]:
         return combined
 
     future = _months_between_inclusive(add_months(last_observed, 1), through)
+
+    if seasonal:
+        projected = _project_via_seasonal_adjustment(hist, last_observed, future)
+        if projected is not None:
+            combined.update(projected)
+            return combined
+
     implied = _monthly_from_levels(level)
     rates = [benchmarks.mean_mom(_clean(implied))] * len(future)
 
@@ -211,10 +260,53 @@ def project_levels(hist: History, through: str) -> dict[str, float]:
     return combined
 
 
-def _index_projection(hist: History, months: Sequence[str]) -> list[float]:
-    """Year-ended rate from projected index levels, so base effects are exact."""
+def _project_via_seasonal_adjustment(
+    hist: History, last_observed: str, future: Sequence[str]
+) -> dict[str, float] | None:
+    """Project the adjusted level, then put the seasonal shape back on.
+
+    Growing the seasonally adjusted series at a flat rate is the defensible naive
+    step — that series has no seasonality left to get wrong — and multiplying by
+    the published factor restores the calendar pattern the Original series has.
+    Compounding a flat rate on the Original series instead implicitly assumes every
+    future month carries average seasonality, which is what this fixes.
+
+    Returns None when the inputs cannot support it, so the caller falls back to the
+    flat projection rather than inventing a factor.
+    """
+    if hist.sa_level is None or hist.seasonally_adjusted:
+        return None
+
+    adjusted = hist.sa_level.dropna()
+    if adjusted.empty:
+        return None
+    # The adjusted series drives the projection, so it must reach the anchor. If it
+    # lags the Original, extrapolating from a stale anchor would be worse than the
+    # flat fallback.
+    if str(adjusted.index[-1]) != last_observed:
+        return None
+
+    factors = seasonal_factors(hist.level.dropna(), adjusted)
+    needed = {_month_number(m) for m in future}
+    if not needed.issubset(factors.keys()):
+        return None
+
+    implied = _monthly_from_levels(adjusted)
+    if len(implied.dropna()) < 12:
+        return None
+    rate = benchmarks.mean_mom(_clean(implied))
+
+    out: dict[str, float] = {}
+    running = float(adjusted.loc[last_observed])
+    for month in future:
+        running *= 1.0 + rate / 100.0
+        out[month] = running * factors[_month_number(month)]
+    return out
+
+
+def _year_ended_from_levels(hist: History, months: Sequence[str], *, seasonal: bool) -> list[float]:
     horizon_end = max(months, key=period_end)
-    levels = project_levels(hist, horizon_end)
+    levels = project_levels(hist, horizon_end, seasonal=seasonal)
 
     out: list[float] = []
     for month in months:
@@ -226,6 +318,20 @@ def _index_projection(hist: History, months: Sequence[str]) -> list[float]:
             )
         out.append((levels[month] / levels[base] - 1.0) * 100.0)
     return out
+
+
+def _index_projection(hist: History, months: Sequence[str]) -> list[float]:
+    """Year-ended rate from projected index levels, so base effects are exact."""
+    return _year_ended_from_levels(hist, months, seasonal=False)
+
+
+def _seasonal_index_projection(hist: History, months: Sequence[str]) -> list[float]:
+    """As above, but the projected months carry the published seasonal shape.
+
+    Falls back to the flat projection when the adjusted counterpart cannot support
+    it, so the rule is always safe to select.
+    """
+    return _year_ended_from_levels(hist, months, seasonal=True)
 
 
 def _flat(fn: Callable[[list[float]], float], *, use_mom: bool) -> PathRule:
@@ -244,6 +350,7 @@ def _seasonal_naive(hist: History, months: Sequence[str]) -> list[float]:
 
 RULES: dict[str, PathRule] = {
     # Varies with horizon.
+    "seasonal_index_projection": _seasonal_index_projection,
     "index_projection": _index_projection,
     "seasonal_naive": _seasonal_naive,
     # Flat paths, for benchmarks.
@@ -254,20 +361,46 @@ RULES: dict[str, PathRule] = {
 }
 
 #: Rules that produce a year-ended rate and are meaningless for a m/m target.
-YEAR_ENDED_ONLY_RULES = frozenset({"index_projection"})
+YEAR_ENDED_ONLY_RULES = frozenset({"index_projection", "seasonal_index_projection"})
+
+#: Model version recorded per rule, so the track record shows what produced a row.
+MODEL_VERSIONS = {
+    "seasonal_index_projection": "v2-seasonal-index",
+    "index_projection": "v1-index-projection",
+}
+DEFAULT_MODEL_VERSION = "v0-naive"
 
 #: (model, benchmark) per target. Always two different rules — see below.
 DEFAULT_PAIRS: dict[str, tuple[str, str]] = {
     "headline_mom": ("seasonal_naive", "mean_mom"),
-    "headline_yoy": ("index_projection", "random_walk"),
+    # Original series, so the published seasonal shape is worth restoring.
+    "headline_yoy": ("seasonal_index_projection", "random_walk"),
+    # Already seasonally adjusted: a seasonal correction here would double-count.
     "trimmed_mean_yoy": ("index_projection", "random_walk"),
 }
 
-#: Companions each target needs: (index_id, tsest, seasonally_adjusted).
-_COMPANIONS: dict[str, tuple[str, str, bool]] = {
-    "headline_mom": ("10001", TSEST_ORIGINAL, False),
-    "headline_yoy": ("10001", TSEST_ORIGINAL, False),
-    "trimmed_mean_yoy": ("999902", TSEST_SEASONALLY_ADJUSTED, True),
+
+@dataclass(frozen=True)
+class TargetSeries:
+    """Which panel series a target reads, and its adjusted counterpart if any."""
+
+    index_id: str
+    tsest: str
+    seasonally_adjusted: bool
+    sa_index_id: str | None = None
+    sa_tsest: str | None = None
+
+
+_COMPANIONS: dict[str, TargetSeries] = {
+    # 999901 is "All groups CPI, seasonally adjusted" — the ABS's own adjustment of
+    # 10001, which is what supplies the seasonal factors.
+    "headline_mom": TargetSeries(
+        "10001", TSEST_ORIGINAL, False, "999901", TSEST_SEASONALLY_ADJUSTED
+    ),
+    "headline_yoy": TargetSeries(
+        "10001", TSEST_ORIGINAL, False, "999901", TSEST_SEASONALLY_ADJUSTED
+    ),
+    "trimmed_mean_yoy": TargetSeries("999902", TSEST_SEASONALLY_ADJUSTED, True),
 }
 
 
@@ -286,12 +419,33 @@ def _origin_month(today: date) -> str:
 
 
 def build_history(panel: pd.DataFrame, target: str) -> History:
-    index_id, tsest, seasonally_adjusted = _COMPANIONS[target]
+    spec = _COMPANIONS[target]
+
+    sa_level = None
+    if spec.sa_index_id and spec.sa_tsest:
+        try:
+            sa_level = series_for(
+                panel,
+                spec.sa_index_id,
+                MEASURE_INDEX_NUMBER,
+                spec.sa_tsest,
+                name=f"{target}_sa_level",
+            )
+        except ValueError:
+            # Older vintages may not carry the adjusted counterpart. The seasonal
+            # rule falls back rather than failing.
+            sa_level = None
+
     return History(
         own=target_series(panel, target),
-        mom=series_for(panel, index_id, MEASURE_CHANGE_PREV_PERIOD, tsest, name=f"{target}_mom"),
-        level=series_for(panel, index_id, MEASURE_INDEX_NUMBER, tsest, name=f"{target}_level"),
-        seasonally_adjusted=seasonally_adjusted,
+        mom=series_for(
+            panel, spec.index_id, MEASURE_CHANGE_PREV_PERIOD, spec.tsest, name=f"{target}_mom"
+        ),
+        level=series_for(
+            panel, spec.index_id, MEASURE_INDEX_NUMBER, spec.tsest, name=f"{target}_level"
+        ),
+        seasonally_adjusted=spec.seasonally_adjusted,
+        sa_level=sa_level,
     )
 
 
@@ -366,7 +520,7 @@ def forecast_path(
                 # later vintage than it claims is visible in the log.
                 information_cutoff=cutoff,
                 model=model,
-                model_version="v1-index-projection" if model == "index_projection" else "v0-naive",
+                model_version=MODEL_VERSIONS.get(model, DEFAULT_MODEL_VERSION),
                 benchmark_name=benchmark,
                 benchmark_point=round(float(bench), 3),
                 note=(

@@ -26,6 +26,8 @@ HEADLINE_LEVEL_KEY = "2:0:0:0:0"
 TRIMMED_YOY_KEY = "0:1:1:0:0"
 TRIMMED_MOM_KEY = "1:1:1:0:0"
 TRIMMED_LEVEL_KEY = "2:1:1:0:0"
+# 999901 "All groups CPI, seasonally adjusted" — INDEX position 3, TSEST position 1.
+HEADLINE_SA_LEVEL_KEY = "2:3:1:0:0"
 
 DIMENSIONS = [
     {
@@ -42,6 +44,7 @@ DIMENSIONS = [
             {"id": "10001", "name": "All groups CPI"},
             {"id": "999902", "name": "Trimmed Mean"},
             {"id": "30002", "name": "Bread and cereal products"},
+            {"id": "999901", "name": "All groups CPI, seasonally adjusted"},
         ],
     },
     {
@@ -88,24 +91,39 @@ def all_targets_doc(
     trimmed_yoy: float = 3.6,
     mom: Callable[[int], float] | None = None,
     trimmed_mom: Callable[[int], float] | None = None,
+    sa_factors: dict[int, float] | None = None,
 ) -> dict:
     """A doc carrying all three targets plus their m/m and index companions.
 
     `mom` maps an observation position to a monthly rate; the default is flat.
     Pass a varying one where a rule must be shown to respond to seasonality.
+
+    `sa_factors` maps a calendar month to an Original/SeasonallyAdjusted ratio, and
+    the 999901 adjusted level is emitted as Original divided by it. The default of
+    1.0 everywhere makes the adjusted series identical to the Original, so the
+    seasonal projection reduces exactly to the flat one — which is what a test
+    wanting no seasonality should see.
     """
     n = len(periods)
     mom_fn = mom or (lambda _i: 0.3)
     trimmed_fn = trimmed_mom or (lambda _i: 0.25)
+    factors = sa_factors or {}
 
     headline_rates = [mom_fn(i) for i in range(n)]
     trimmed_rates = [trimmed_fn(i) for i in range(n)]
+    headline_levels = compound(headline_rates)
+
+    sa_levels = [
+        level / factors.get(int(period.split("-")[1]), 1.0)
+        for level, period in zip(headline_levels, periods, strict=True)
+    ]
 
     return sdmx(
         {
             HEADLINE_YOY_KEY: observations([yoy] * n),
             HEADLINE_MOM_KEY: observations(headline_rates),
-            HEADLINE_LEVEL_KEY: observations(compound(headline_rates)),
+            HEADLINE_LEVEL_KEY: observations(headline_levels),
+            HEADLINE_SA_LEVEL_KEY: observations(sa_levels),
             TRIMMED_YOY_KEY: observations([trimmed_yoy] * n),
             TRIMMED_MOM_KEY: observations(trimmed_rates),
             TRIMMED_LEVEL_KEY: observations(compound(trimmed_rates)),

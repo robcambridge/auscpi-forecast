@@ -26,8 +26,9 @@ def test_build_writes_panel_and_targets(data_dir):
 
     result = build_abs_cpi("abs_cpi_monthly")
 
-    # 6 series (3 targets plus their m/m and index companions) x 2 periods.
-    assert result.rows == 12
+    # 7 series (3 targets, their m/m and index companions, and the seasonally
+    # adjusted headline counterpart) x 2 periods.
+    assert result.rows == 14
     assert result.periods == 2
     assert result.latest_period == "2026-06"
     assert (data_dir / "curated" / "abs_cpi_monthly.parquet").exists()

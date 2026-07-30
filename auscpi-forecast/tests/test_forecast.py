@@ -113,11 +113,11 @@ def test_seasonal_naive_only_ever_looks_backwards():
     assert path.records[0].point == pytest.approx(float(observed.loc["2025-07"]), abs=1e-6)
 
 
-def test_year_ended_default_is_the_index_projection_and_varies_by_horizon():
+def test_year_ended_default_is_an_index_projection_and_varies_by_horizon():
     path = forecast_path(
         "headline_yoy", horizons=range(13), today=date(2026, 7, 30), panel=panel_with_history()
     )
-    assert path.model == "index_projection"
+    assert path.model == "seasonal_index_projection"
     assert path.benchmark == "random_walk"
     # The old flat carry-forward gave one number for every horizon. Base effects
     # rolling out of the annual window must move it.
@@ -126,7 +126,7 @@ def test_year_ended_default_is_the_index_projection_and_varies_by_horizon():
 
 def test_model_version_distinguishes_the_projection_from_the_naive_rules():
     projected = forecast_path("headline_yoy", today=date(2026, 7, 30), panel=panel_with_history())
-    assert all(r.model_version == "v1-index-projection" for r in projected.records)
+    assert all(r.model_version == "v2-seasonal-index" for r in projected.records)
 
     naive = forecast_path("headline_mom", today=date(2026, 7, 30), panel=panel_with_history())
     assert all(r.model_version == "v0-naive" for r in naive.records)
@@ -242,6 +242,99 @@ def test_index_projection_is_rejected_for_a_month_on_month_target():
             today=date(2026, 7, 30),
             panel=panel_with_history(),
         )
+
+
+# A July uplift, as the real Original/SA ratio shows: July sits ~0.4% above the
+# months around it. Everything else flat so the July effect is isolated.
+JULY_FACTORS = {m: (1.004 if m == 7 else 1.000) for m in range(1, 13)}
+
+
+def test_seasonal_factors_recover_the_injected_shape():
+    from auscpi.forecast import build_history, seasonal_factors
+
+    panel = parse_sdmx_json(all_targets_doc(PERIODS, sa_factors=JULY_FACTORS))
+    hist = build_history(panel, "headline_yoy")
+    factors = seasonal_factors(hist.level.dropna(), hist.sa_level.dropna())
+
+    assert factors[7] == pytest.approx(1.004, abs=1e-9)
+    assert factors[6] == pytest.approx(1.000, abs=1e-9)
+
+
+def test_seasonal_projection_lifts_a_july_forecast_above_the_flat_one():
+    """The fix: a flat driver gives every future month average seasonality.
+
+    h=0 here is July 2026. With a July uplift in the seasonal factors, restoring
+    that shape must raise the July forecast relative to compounding a flat mean.
+    """
+    panel = parse_sdmx_json(all_targets_doc(PERIODS, sa_factors=JULY_FACTORS))
+    kw = dict(horizons=[0], today=date(2026, 7, 30), panel=panel, benchmark="random_walk")
+
+    seasonal = forecast_path("headline_yoy", model="seasonal_index_projection", **kw)
+    flat = forecast_path("headline_yoy", model="index_projection", **kw)
+
+    assert seasonal.records[0].reference_month == "2026-07"
+    assert seasonal.records[0].point > flat.records[0].point
+
+
+def test_seasonal_projection_matches_flat_when_there_is_no_seasonality():
+    """Factors of 1.0 make the adjusted series identical, so the rules must agree."""
+    panel = parse_sdmx_json(all_targets_doc(PERIODS, mom=lambda i: round(0.1 * (i % 12), 3)))
+    kw = dict(horizons=range(13), today=date(2026, 7, 30), panel=panel, benchmark="random_walk")
+
+    seasonal = forecast_path("headline_yoy", model="seasonal_index_projection", **kw)
+    flat = forecast_path("headline_yoy", model="index_projection", **kw)
+
+    for a, b in zip(seasonal.records, flat.records, strict=True):
+        assert a.point == pytest.approx(b.point, abs=1e-6)
+
+
+def test_seasonal_rule_falls_back_when_the_adjusted_series_is_missing():
+    """Older vintages may not carry 999901; the rule must still produce a path."""
+    from sdmx_fixtures import compound
+
+    n = len(PERIODS)
+    rates = [0.3] * n
+    panel = parse_sdmx_json(
+        sdmx(
+            {
+                HEADLINE_YOY_KEY: observations([3.8] * n),
+                HEADLINE_MOM_KEY: observations(rates),
+                HEADLINE_LEVEL_KEY: observations(compound(rates)),
+            },
+            PERIODS,
+        )
+    )
+    from auscpi.forecast import build_history
+
+    assert build_history(panel, "headline_yoy").sa_level is None
+
+    path = forecast_path(
+        "headline_yoy",
+        model="seasonal_index_projection",
+        horizons=[0],
+        today=date(2026, 7, 30),
+        panel=panel,
+    )
+    assert path.records[0].point == pytest.approx(((1.003**12) - 1) * 100, abs=1e-3)
+
+
+def test_seasonal_rule_is_the_default_only_for_the_original_target():
+    # 10001 is Original, so the published seasonal shape is worth restoring.
+    assert DEFAULT_PAIRS["headline_yoy"][0] == "seasonal_index_projection"
+    # 999902 is already adjusted; correcting it again would double-count.
+    assert DEFAULT_PAIRS["trimmed_mean_yoy"][0] == "index_projection"
+
+
+def test_model_versions_are_distinct_per_rule():
+    from auscpi.forecast import MODEL_VERSIONS
+
+    panel = parse_sdmx_json(all_targets_doc(PERIODS, sa_factors=JULY_FACTORS))
+    seasonal = forecast_path("headline_yoy", horizons=[0], today=date(2026, 7, 30), panel=panel)
+    trimmed = forecast_path("trimmed_mean_yoy", horizons=[0], today=date(2026, 7, 30), panel=panel)
+
+    assert seasonal.records[0].model_version == MODEL_VERSIONS["seasonal_index_projection"]
+    assert trimmed.records[0].model_version == MODEL_VERSIONS["index_projection"]
+    assert seasonal.records[0].model_version != trimmed.records[0].model_version
 
 
 def test_history_records_whether_the_series_is_seasonally_adjusted():
