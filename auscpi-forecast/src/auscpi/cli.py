@@ -100,6 +100,10 @@ def build(
     for r in results:
         for out in r.outputs:
             console.print(f"  [green]wrote[/green] {out}")
+        # What a source discarded is part of the result, not a debug detail: a
+        # cleaning rule that starts dropping twice as much should be visible here.
+        if r.note:
+            console.print(f"  [dim]{r.note}[/dim]")
 
 
 @app.command("backfill-bonds")

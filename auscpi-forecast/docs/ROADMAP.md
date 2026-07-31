@@ -23,10 +23,11 @@ Only goal: data starts accumulating today.
 - [ ] FuelCheck API key, repo secrets, confirm the Action runs
 - [x] ~~**SQM weekly asking rents**~~ — ruled out, their Terms of Service prohibit
       automated access (docs/DATA_SOURCES.md, "Sources ruled out")
-- [ ] **NSW rental bond lodgements** — the replacement rent indicator, and the
+- [x] **NSW rental bond lodgements** — the replacement rent indicator, and the
       input to the main forecasting edge. New-lease rents by postcode, CC-BY.
-      No longer the day-one priority: unlike asking rents this backfills to
-      Jan 2021, so nothing is lost by building it after the grocery scraper.
+      History captured 2026-07-31: 54 monthly workbooks, 2022-01 to 2026-06,
+      1,465,157 lodgements, ~37 MB in `data/raw`. Monthly files run back to
+      2022-01, not 2021-01 as first recorded here.
 - [ ] Grocery basket scraper — fixed ~200 SKUs mapped to expenditure classes
 - [x] Confirm the ABS dataflow id, enable the ABS collector — `ABS,CPI,2.0.0`,
       monthly and quarterly national slices, on collect-abs.yml. The old
@@ -74,7 +75,16 @@ much more of the month-to-month variance.
 - [ ] Fuel from FuelCheck. Near-deterministic. Volume-weight NSW stations, then
       estimate the NSW-to-national gap.
 - [ ] Food and non-alcoholic beverages from the scraped basket (~17%)
-- [ ] Rents, current-month measurement
+- [x] **Rents, current-month measurement** — `auscpi build` writes
+      `data/curated/nsw_rental_bonds.parquet` (1,341,330 cleaned lodgements) and
+      `nsw_rental_bonds_index.csv`, a FIXED-WEIGHT index of stratum medians rather
+      than the plain median NSW Fair Trading publishes. The plain median is
+      contaminated by which dwellings happened to be leased that month and is
+      carried alongside only so the contamination stays visible; the two m/m
+      series differ by 0.86pp on average across the sample. See
+      `parsers/nsw_rental_bonds.py`. Still NSW-only and not yet split Sydney from
+      the rest of the state — that correspondence is an ABS product to read, not
+      a postcode range to guess.
 - [ ] Electricity and gas from AER determinations and rebate schedules
 - [ ] Long tail: seasonal model. Do not gold-plate.
 
@@ -82,11 +92,19 @@ much more of the month-to-month variance.
 
 This is the project. Everything above exists to make this possible.
 
-- [ ] **Rent roll-through.** Estimate the distribution of lags from SQM asking
-      rents to ABS measured rents. The ABS measures the stock, not new leases, so
-      today's asking rents constrain measured rents 6–12 months out almost
-      mechanically. This is the one component where accuracy improves with
-      horizon rather than decaying, and it is the core of the edge.
+- [ ] **Rent roll-through. Both inputs now exist — this is the next real task.**
+      Estimate the distribution of lags from the NSW bond lodgement index
+      (new-lease rents, `data/curated/nsw_rental_bonds_index.csv`, 54 months) to
+      ABS measured rents (expenditure class `30014`, weight 6.613%). The ABS
+      prices the stock, not new leases, so today's new-lease rents constrain
+      measured rents 6–12 months out almost mechanically. This is the one
+      component where accuracy improves with horizon rather than decaying, and it
+      is the core of the edge. Not SQM asking rents — those are ruled out.
+
+      Two things to settle before fitting anything: the bond index is NSW while
+      `30014` is national, and 54 monthly observations against a lag structure of
+      6–12 months is a short sample for a distributed lag. Expect to constrain the
+      lag shape rather than estimate it freely.
 - [ ] **Fuel forward path** from refined product futures plus AUD forwards plus
       known excise indexation, rather than a statistical model of petrol prices.
 - [ ] Tradables: FX pass-through with an estimated lag, off import prices

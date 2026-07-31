@@ -12,7 +12,7 @@ day not collected is a day permanently absent from your sample.
 | ABS quarterly CPI | Decades of quarterly history | ABS Data API | CC-BY |
 | RBA statistical tables | Cash rate, market rates, inflation expectations | CSV/XLSX | CC-BY |
 | NSW FuelCheck **archives** | Historical station-level prices | data.nsw.gov.au dataset files | CC-BY |
-| NSW Rental Bond Lodgements | Monthly **new-lease** rents by postcode: weekly rent, dwelling type, bedrooms | NSW Fair Trading .xlsx, monthly, back to Jan 2021 | CC-BY |
+| NSW Rental Bond Lodgements | Monthly **new-lease** rents by postcode: weekly rent, dwelling type, bedrooms | NSW Fair Trading .xlsx, monthly, back to Jan 2022 | CC-BY |
 | AER Default Market Offer | Regulated electricity price determinations | PDF/HTML, published in advance | CC-BY |
 | IPART determinations | NSW regulated prices (water, transport) | PDF/HTML | CC-BY |
 | Commonwealth Budget / MYEFO | Fiscal measures with quantified price effects | PDF | CC-BY |
@@ -139,7 +139,28 @@ period back off the filename. Refunds and holdings are separate series published
 on the same page; match on "lodge" to avoid them.
 
 Run monthly with `auscpi collect nsw_rental_bonds`; capture the history to
-January 2022 with `auscpi backfill-bonds` (~35 MB, one-time).
+January 2022 with `auscpi backfill-bonds` (~35 MB, one-time). **Done 2026-07-31:**
+54 monthly files, 2022-01 to 2026-06, 1,465,157 lodgements, 37 MB in `data/raw`.
+
+Structure, verified across all 54 files rather than inferred from one:
+
+| Property | What the archive actually does |
+|---|---|
+| Data sheet | Always the **first** sheet. The second is `Definitions`, `Definition`, `Definitions ` (trailing space) or `Sheet2`, so it cannot be selected by name |
+| Header | Always the third row, under a title row and a blank one |
+| Columns | Always exactly the five above, never more |
+| Months per file | Exactly one, in all 54 files — no overlap between files, no stragglers within one |
+| Bedrooms, Weekly Rent | **Text, not numbers**, because both use `U` for unknown |
+
+The Definitions sheet documents the codes: dwelling type `F` flat/unit, `H` house,
+`T` terrace/townhouse/semi, `O` other, `U` unknown — and warns that Other "may
+include rented rooms, garages and car spaces", which is why the index keeps only
+F/H/T. The published data also carries 56 rows under undocumented codes (`P`, `G`,
+`1`, `3`…), rents from $1 to $10,000, and bedroom counts to 30.
+
+`parsers/nsw_rental_bonds.py` builds a **fixed-weight** index over strata rather
+than the plain median, and counts every row it drops. See its module docstring for
+why the plain median is the wrong input to a roll-through model.
 
 **ABS Data API.** `https://data.api.abs.gov.au/rest/`. No key, CC-BY.
 

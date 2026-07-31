@@ -107,6 +107,100 @@ def test_error_snapshots_are_not_built(data_dir):
         build_abs_cpi("abs_cpi_monthly")
 
 
+def bonds(period: str, *, rent: int = 600, n: int = 50) -> bytes:
+    from bond_fixtures import bond_workbook, lodgements
+
+    return bond_workbook(lodgements(period, rent=rent, n=n))
+
+
+def test_bond_build_stacks_every_snapshot_not_just_the_newest(data_dir):
+    """One bond snapshot is one MONTH, not one vintage of the whole history."""
+    from auscpi.build import build_nsw_rental_bonds
+
+    # Distinct fetched_at: the snapshot path is second-resolution, and the real
+    # collector never writes two within one second.
+    write_snapshot(
+        "nsw_rental_bonds",
+        bonds("2026-05"),
+        url="http://may",
+        fetched_at=datetime(2026, 6, 10, tzinfo=UTC),
+    )
+    write_snapshot(
+        "nsw_rental_bonds",
+        bonds("2026-06"),
+        url="http://june",
+        fetched_at=datetime(2026, 7, 10, tzinfo=UTC),
+    )
+
+    result = build_nsw_rental_bonds()
+    assert result.periods == 2
+    assert result.rows == 100
+    assert result.latest_period == "2026-06"
+    assert (data_dir / "curated" / "nsw_rental_bonds_index.csv").exists()
+
+
+def test_a_month_collected_twice_is_not_double_counted(data_dir):
+    """The published file for a month can be reissued, and the workflow recaptures it."""
+    import pandas as pd
+
+    from auscpi.build import build_nsw_rental_bonds
+
+    write_snapshot(
+        "nsw_rental_bonds",
+        bonds("2026-06", rent=500),
+        url="http://first",
+        fetched_at=datetime(2026, 7, 10, tzinfo=UTC),
+    )
+    write_snapshot(
+        "nsw_rental_bonds",
+        bonds("2026-06", rent=600),
+        url="http://reissued",
+        fetched_at=datetime(2026, 7, 20, tzinfo=UTC),
+    )
+
+    result = build_nsw_rental_bonds()
+    assert result.rows == 50, "the month was counted twice"
+    index = pd.read_csv(data_dir / "curated" / "nsw_rental_bonds_index.csv")
+    assert index["median_weekly_rent"].iloc[0] == 600, "the reissued file should win"
+
+
+def test_bond_build_respects_as_at(data_dir):
+    """Rule 3, on a source whose history is assembled from many snapshots."""
+    from auscpi.build import build_nsw_rental_bonds
+
+    write_snapshot(
+        "nsw_rental_bonds",
+        bonds("2026-05"),
+        url="http://may",
+        fetched_at=datetime(2026, 6, 10, tzinfo=UTC),
+    )
+    write_snapshot(
+        "nsw_rental_bonds",
+        bonds("2026-06"),
+        url="http://june",
+        fetched_at=datetime(2026, 7, 10, tzinfo=UTC),
+    )
+
+    result = build_nsw_rental_bonds(as_at=datetime(2026, 6, 30, tzinfo=UTC))
+    assert result.latest_period == "2026-05"
+    assert result.periods == 1
+
+
+def test_bond_build_reports_what_it_discarded(data_dir):
+    """The cleaning rules drop real published rows, so the count has to surface."""
+    from bond_fixtures import bond_workbook, lodgements
+
+    from auscpi.build import build_nsw_rental_bonds
+
+    rows = lodgements("2026-06", n=50) + lodgements("2026-06", dwelling="O", n=7)
+    write_snapshot("nsw_rental_bonds", bond_workbook(rows), url="http://x")
+
+    result = build_nsw_rental_bonds()
+    assert result.rows == 50
+    assert "dropped 7 rows" in result.note
+    assert "non_dwelling_type" in result.note
+
+
 def test_build_all_skips_uncollected_sources(data_dir):
     write_snapshot("abs_cpi_monthly", doc(["2026-06"]), url="http://x")
     results = build_all()

@@ -26,6 +26,7 @@ import pandas as pd
 
 from auscpi.config import settings
 from auscpi.parsers.abs_cpi import parse_sdmx_json, targets_frame
+from auscpi.periods import period_end
 from auscpi.storage import load_snapshot, read_manifest, snapshots_as_at
 
 #: Raw source slug -> curated basename.
@@ -43,10 +44,18 @@ class BuildResult:
     latest_period: str
     outputs: list[str]
     vintage: str  # fetched_at of the snapshot used
+    #: Free text for anything a caller should see without reading the outputs —
+    #: the bond build reports what its cleaning rules discarded.
+    note: str = ""
 
 
-def _select_snapshot(source: str, as_at: datetime | None) -> dict[str, Any]:
-    """The newest ok snapshot for `source`, respecting `as_at` if given."""
+def _select_snapshots(source: str, as_at: datetime | None) -> list[dict[str, Any]]:
+    """Every ok snapshot for `source`, respecting `as_at` if given.
+
+    Sources whose history accumulates one snapshot per reference month — the bond
+    lodgements — need all of them, not the newest. Routing both cases through the
+    same `as_at` filter keeps rule 3 enforced identically for each.
+    """
     entries = (
         snapshots_as_at(source, as_at)
         if as_at is not None
@@ -57,7 +66,12 @@ def _select_snapshot(source: str, as_at: datetime | None) -> dict[str, Any]:
         raise FileNotFoundError(
             f"no successful {source} snapshot{when}. Run `auscpi collect {source}` first."
         )
-    return max(entries, key=lambda m: m["fetched_at"])
+    return entries
+
+
+def _select_snapshot(source: str, as_at: datetime | None) -> dict[str, Any]:
+    """The newest ok snapshot for `source`, respecting `as_at` if given."""
+    return max(_select_snapshots(source, as_at), key=lambda m: m["fetched_at"])
 
 
 def load_panel(source: str, *, as_at: datetime | None = None) -> pd.DataFrame:
@@ -145,6 +159,73 @@ def build_abs_cpi_weights(*, as_at: datetime | None = None) -> BuildResult:
     )
 
 
+def build_nsw_rental_bonds(*, as_at: datetime | None = None) -> BuildResult:
+    """Assemble the bond lodgement history into records plus a mix-controlled index.
+
+    Unlike the ABS sources, one snapshot here is one MONTH rather than one vintage
+    of everything, so the build reads every snapshot and stacks them. That makes
+    two things the ABS path never has to think about matter:
+
+      - Collecting the same month twice must not double-count it. The published
+        file for a month can be reissued, and the monthly workflow will happily
+        capture it again. Rows are therefore keyed on the month found in the DATA,
+        and the newest snapshot wins — filename and note are navigation metadata
+        and neither is reliable enough to key on.
+      - Parsing is per-file, so a single corrupt or re-shaped workbook would fail
+        the whole build. It is allowed to: a rent index silently missing March is
+        worse than one that refuses to build, and the exception names the file.
+    """
+    from auscpi.parsers.nsw_rental_bonds import (
+        Rejections,
+        clean_records,
+        file_period,
+        index_frame,
+        parse_workbook,
+    )
+
+    source = "nsw_rental_bonds"
+    entries = _select_snapshots(source, as_at)
+
+    # Newest snapshot first, so the first sighting of a month is the one to keep.
+    newest_first = sorted(entries, key=lambda m: m["fetched_at"], reverse=True)
+    frames: list[pd.DataFrame] = []
+    rejected = Rejections()
+    seen: set[str] = set()
+    vintage = newest_first[0]["fetched_at"]
+
+    for entry in newest_first:
+        try:
+            raw = parse_workbook(load_snapshot(entry["payload_path"]))
+            period = file_period(raw)
+        except Exception as exc:  # noqa: BLE001 - the path is what makes it actionable
+            raise ValueError(f"failed to parse {entry['payload_path']}: {exc}") from exc
+        if period in seen:
+            continue
+        seen.add(period)
+        records, counts = clean_records(raw, period)
+        frames.append(records)
+        rejected = rejected + counts
+
+    panel = pd.concat(frames, ignore_index=True).sort_values(["period", "lodgement_date"])
+    if panel.empty:
+        raise ValueError(f"{source} snapshots parsed to zero usable rows")
+
+    index = index_frame(panel)
+
+    outputs = [_write(panel, settings.curated_dir / f"{source}.parquet")]
+    outputs.append(_write(index, settings.curated_dir / f"{source}_index.csv"))
+
+    return BuildResult(
+        source=source,
+        rows=len(panel),
+        periods=panel["period"].nunique(),
+        latest_period=str(max(seen, key=period_end)),
+        outputs=outputs,
+        vintage=vintage,
+        note=f"dropped {rejected.total:,} rows: {rejected.as_dict()}",
+    )
+
+
 def build_all(*, as_at: datetime | None = None, strict: bool = False) -> list[BuildResult]:
     """Build every source that has a snapshot.
 
@@ -161,6 +242,11 @@ def build_all(*, as_at: datetime | None = None, strict: bool = False) -> list[Bu
                 raise
     try:
         results.append(build_abs_cpi_weights(as_at=as_at))
+    except FileNotFoundError:
+        if strict:
+            raise
+    try:
+        results.append(build_nsw_rental_bonds(as_at=as_at))
     except FileNotFoundError:
         if strict:
             raise

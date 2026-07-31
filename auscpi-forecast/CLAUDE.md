@@ -116,7 +116,8 @@ pushed: 39 rows, h=0..12, three targets, information cutoff 2026-06.
 
 Collectors: `fuelcheck` (daily, key works, runs in Actions), `abs_cpi_monthly`,
 `abs_cpi_quarterly`, `abs_cpi_weights` (all on collect-abs.yml, 1st of month),
-`nsw_rental_bonds` (implemented, monthly workflow, history not yet backfilled).
+`nsw_rental_bonds` (monthly workflow; history backfilled 2026-07-31, 54 files,
+2022-01 to 2026-06, ~37 MB).
 
 **Two traps that already bit once. Do not rediscover them:**
 
@@ -143,8 +144,18 @@ against 3.727 on the live vintage. `seasonal_naive` became the benchmark for
 `v2-seasonal-index`. The rows already in `log.csv` keep the old pairing and
 `v0-naive`; they are history, not a mistake to correct (rule 4).
 
-In rough value order from here: Phase 3 rents (both sides now exist — bond
-lodgements lead, ABS measured rents are the target, weight is 6.613%); the
+**Rents are measured, 2026-07-31.** `auscpi build` now writes
+`data/curated/nsw_rental_bonds_index.csv` from 1.34M cleaned lodgements. The index
+is FIXED-WEIGHT over strata (dwelling type x bedrooms), not the plain median NSW
+Fair Trading publishes — the plain median moves with whatever mix happened to be
+leased, and the two m/m series differ by 0.86pp on average, so a roll-through model
+fitted on the raw median would be fitting composition. Read the module docstring in
+`parsers/nsw_rental_bonds.py` before changing any threshold in it; every exclusion
+is counted and surfaced in `BuildResult.note` on purpose.
+
+In rough value order from here: the rent roll-through itself (Phase 4 — both sides
+now exist, NSW bond index leads, ABS class `30014` at 6.613% is the target, and the
+NSW-to-national and short-sample problems are the two things to settle first); the
 administered-price calendar (Phase 5, the only thing that can resolve the
 year-specific 1 July swing, which is worth more than any driver refinement); then
 quantiles by horizon.
