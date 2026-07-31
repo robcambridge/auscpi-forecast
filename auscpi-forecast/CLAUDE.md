@@ -81,13 +81,74 @@ Do not add, and push back if asked to:
 
 - `src/auscpi/storage.py` — the provenance model, read this before anything else
 - `src/auscpi/collectors/base.py` — the collector contract
+- `src/auscpi/forecast.py` — the models, and an honest list of what is weak
+- `src/auscpi/parsers/abs_cpi.py` — the SDMX flattener and the verified target triples
 - `docs/DATA_SOURCES.md` — every source, access method, backfillable or not
 - `docs/ROADMAP.md` — build order and what depends on what
+- `forecasts/README.md` — what the published model is and where it fails
 
-## Current priority
+## Running it locally
 
-Phase 1 in `docs/ROADMAP.md`. The single most time-critical item is getting the
-daily collectors running, because scraped data cannot be backfilled and every
-day not collecting is a day permanently missing from the sample. Asking rents
-matter most: they are the input to the rent roll-through model, which is the
-project's main forecasting edge.
+There is no venv by default and the package is not pip-installed. To run the
+suite or the CLI:
+
+```
+python -m venv .venv
+.venv/Scripts/python.exe -m pip install pytest ruff httpx tenacity pydantic pydantic-settings pandas pyarrow typer rich pyyaml
+.venv/Scripts/python.exe -m ruff check src tests
+PYTHONPATH=src .venv/Scripts/python.exe -m pytest -q tests
+PYTHONPATH=src .venv/Scripts/python.exe -c "from auscpi.cli import app; app()" health
+```
+
+`PYTHONPATH` separates with `;` on Windows, but one entry is enough. To exercise a
+collector or the build without touching the real `data/`, set
+`AUSCPI_DATA_DIR` to a throwaway directory — do that for any experiment, since
+`data/raw` is append-only provenance.
+
+## State of play — read this before planning anything
+
+Last updated 2026-07-30. `docs/ROADMAP.md` has the per-item detail and is kept
+ticked off; this is the summary.
+
+**Working end to end.** `auscpi collect` → `auscpi build` → `auscpi forecast --log`
+→ `auscpi fill-actual` → `auscpi score`. The first public path is logged and
+pushed: 39 rows, h=0..12, three targets, information cutoff 2026-06.
+
+Collectors: `fuelcheck` (daily, key works, runs in Actions), `abs_cpi_monthly`,
+`abs_cpi_quarterly`, `abs_cpi_weights` (all on collect-abs.yml, 1st of month),
+`nsw_rental_bonds` (implemented, monthly workflow, history not yet backfilled).
+
+**Two traps that already bit once. Do not rediscover them:**
+
+1. `ABS,CPI_M,*` is the RETIRED monthly indicator, frozen at 2025-09. The live
+   dataflow is `ABS,CPI,2.0.0`. Collectors refuse a stale series for this reason.
+2. SQM Research must not be scraped — their Terms of Service prohibit it even
+   though robots.txt allows it. `collectors/sqm_rents.py` is hard-disabled and
+   raises. See `docs/DATA_SOURCES.md`, "Sources ruled out". NSW rental bond
+   lodgements replaced it and are a better series anyway.
+
+**The binding constraint is sample size, not code.** The monthly CPI gives ~27
+index observations and ~15 year-ended. Nothing estimated here is statistically
+meaningful yet, and no claim of skill should be made. This is why the roadmap says
+log a path now rather than when the model is good — the track record clock is the
+one thing that cannot be accelerated later.
+
+**Fixed 2026-07-31: the targets no longer contradict each other.** `headline_mom`
+was seasonal naive while `headline_yoy` projected the index, and for July 2026 they
+said +1.30% and +0.70%. The m/m path is now `seasonal_index_mom`, read off the same
+projected levels as the year-ended rules (`level(m)/level(m-1)`), so compounding the
+m/m path across an annual window returns that window's year-ended point — 3.7267
+against 3.727 on the live vintage. `seasonal_naive` became the benchmark for
+`headline_mom`, since it is what the change replaced. Both headline targets log as
+`v2-seasonal-index`. The rows already in `log.csv` keep the old pairing and
+`v0-naive`; they are history, not a mistake to correct (rule 4).
+
+In rough value order from here: Phase 3 rents (both sides now exist — bond
+lodgements lead, ABS measured rents are the target, weight is 6.613%); the
+administered-price calendar (Phase 5, the only thing that can resolve the
+year-specific 1 July swing, which is worth more than any driver refinement); then
+quantiles by horizon.
+
+**Not started and possibly blocked:** the grocery basket (~17% of the basket)
+needs Coles/Woolworths terms checked first, and on the SQM precedent may fail the
+same test. Check before writing code, not after.

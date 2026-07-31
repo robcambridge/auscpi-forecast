@@ -26,16 +26,35 @@ WHY LEVEL-DERIVED MONTHLY RATES. The projection compounds monthly movements
 derived from the index level, not the published m/m series, because the published
 series is rounded to one decimal place. Compounding thirteen values each carrying
 up to 0.05pp of rounding error accumulates a few tenths of drift, which is the
-same order as the thing being forecast. The published m/m is still what
-`headline_mom` forecasts and is scored on — that is the quantity of interest — but
-it is the wrong input to a compounding calculation.
+same order as the thing being forecast.
+
+ONE PROJECTED INDEX, THREE TARGETS. The m/m path is read off that same projected
+level series, as level(m) / level(m-1). It used to be a separate seasonal-naive
+rule, and the two disagreed about the same month: for July 2026 they said +1.30%
+and +0.70%, a 0.60pp contradiction sitting in the public log. Two rules over one
+index cannot both be right, and nothing in the output told a reader which number
+the model actually believed. Derived from one projection they are arithmetically
+the same forecast — compound the m/m path across the twelve months of an annual
+window and that window's year-ended point comes back out — so the targets can be
+read together.
+
+The residual gap is rounding, and it is one-sided. `headline_mom` is scored
+against the published m/m, which the ABS rounds to one decimal place, so a
+level-derived point carries up to 0.05pp of error that is measurement rather than
+model. That is a floor on measured accuracy at h=0 and negligible against the
+errors at any longer horizon. Rounding the forecast to make the numbers agree
+would hide the model's actual view to flatter the scorecard.
 
 WHAT IS STILL WEAK:
 
   - The monthly driver is a flat trend with the published seasonal shape put back
-    on. The base effects are exact arithmetic; the months not yet observed are a
-    trend guess. See project_levels on why a seasonal-naive driver is not merely
-    worse but degenerate here.
+    on, and every target now inherits it. The base effects are exact arithmetic;
+    the months not yet observed are a trend guess. See project_levels on why a
+    seasonal-naive driver is not merely worse but degenerate here.
+  - Coherence is not accuracy. Three targets that agree can be wrong together, and
+    a single driver means one bad trend estimate now moves all of them the same
+    way. What it buys is that an error is attributable to the projection rather
+    than to an unexplained disagreement between rules.
   - Consequently the path converges on the annualised recent trend at long
     horizons, which is Atkeson-Ohanian by another route. The seasonal correction
     also cancels out there, appearing in both numerator and denominator once the
@@ -88,9 +107,10 @@ from auscpi.track_record import ForecastRecord, months_between
 
 DEFAULT_HORIZONS = tuple(range(13))  # h=0..12
 
-#: Index levels needed before a year-ended rate can be computed at all: twelve
-#: months of base plus the month itself.
-MIN_LEVELS_FOR_YEAR_ENDED = 13
+#: Index levels needed before the projection can run: twelve months to average the
+#: driver over, plus the anchor it compounds from. That is also exactly what a
+#: year-ended rate needs — twelve months of base plus the month itself.
+MIN_LEVELS_FOR_PROJECTION = 13
 
 
 def add_months(reference_month: str, n: int) -> str:
@@ -231,10 +251,10 @@ def project_levels(hist: History, through: str, *, seasonal: bool = False) -> di
     as an observation without noticing which months they asked for.
     """
     level = hist.level.dropna()
-    if len(level) < MIN_LEVELS_FOR_YEAR_ENDED:
+    if len(level) < MIN_LEVELS_FOR_PROJECTION:
         raise ValueError(
-            f"need {MIN_LEVELS_FOR_YEAR_ENDED} index levels to compute a year-ended "
-            f"rate, have {len(level)}"
+            f"need {MIN_LEVELS_FOR_PROJECTION} index levels to project the index, "
+            f"have {len(level)}"
         )
 
     combined = {str(k): float(v) for k, v in level.items()}
@@ -320,6 +340,30 @@ def _year_ended_from_levels(hist: History, months: Sequence[str], *, seasonal: b
     return out
 
 
+def _month_on_month_from_levels(
+    hist: History, months: Sequence[str], *, seasonal: bool
+) -> list[float]:
+    """Monthly rate implied by the same projected levels the year-ended rules read.
+
+    Requesting the projection through the furthest month also produces every month
+    before it, so the immediately preceding level is always available — including
+    for h=0, whose predecessor is the last observation rather than a projection.
+    """
+    horizon_end = max(months, key=period_end)
+    levels = project_levels(hist, horizon_end, seasonal=seasonal)
+
+    out: list[float] = []
+    for month in months:
+        previous = add_months(month, -1)
+        if month not in levels or previous not in levels:
+            raise ValueError(
+                f"cannot compute a monthly rate for {month}: index level for "
+                f"{previous if previous not in levels else month} is unavailable"
+            )
+        out.append((levels[month] / levels[previous] - 1.0) * 100.0)
+    return out
+
+
 def _index_projection(hist: History, months: Sequence[str]) -> list[float]:
     """Year-ended rate from projected index levels, so base effects are exact."""
     return _year_ended_from_levels(hist, months, seasonal=False)
@@ -332,6 +376,22 @@ def _seasonal_index_projection(hist: History, months: Sequence[str]) -> list[flo
     it, so the rule is always safe to select.
     """
     return _year_ended_from_levels(hist, months, seasonal=True)
+
+
+def _seasonal_index_mom(hist: History, months: Sequence[str]) -> list[float]:
+    """Month-on-month from the same projection `seasonal_index_projection` uses.
+
+    Seasonality matters more here than it does for the year-ended target. A July
+    factor moves a year-ended rate once and then leaves it, since both ends of the
+    annual window eventually carry it; on a monthly rate it is the whole story, and
+    a flat driver would forecast the same rate for every month of the year.
+
+    `seasonal=True` is safe to hardcode: project_levels declines the seasonal step
+    on an already-adjusted series, where re-applying a factor would double-count,
+    and falls back to the flat projection when the vintage has no adjusted
+    counterpart to take factors from.
+    """
+    return _month_on_month_from_levels(hist, months, seasonal=True)
 
 
 def _flat(fn: Callable[[list[float]], float], *, use_mom: bool) -> PathRule:
@@ -351,6 +411,7 @@ def _seasonal_naive(hist: History, months: Sequence[str]) -> list[float]:
 RULES: dict[str, PathRule] = {
     # Varies with horizon.
     "seasonal_index_projection": _seasonal_index_projection,
+    "seasonal_index_mom": _seasonal_index_mom,
     "index_projection": _index_projection,
     "seasonal_naive": _seasonal_naive,
     # Flat paths, for benchmarks.
@@ -363,16 +424,27 @@ RULES: dict[str, PathRule] = {
 #: Rules that produce a year-ended rate and are meaningless for a m/m target.
 YEAR_ENDED_ONLY_RULES = frozenset({"index_projection", "seasonal_index_projection"})
 
+#: And the reverse. Both guards exist because the two families read the same
+#: projected index and differ only in which pair of levels they divide, so a
+#: mismatched rule returns a plausible-looking number rather than failing.
+MONTH_ON_MONTH_ONLY_RULES = frozenset({"seasonal_index_mom"})
+
 #: Model version recorded per rule, so the track record shows what produced a row.
+#: The m/m and year-ended headline rules share a version deliberately: they are one
+#: projection read two ways, and versioning them apart would suggest otherwise.
 MODEL_VERSIONS = {
     "seasonal_index_projection": "v2-seasonal-index",
+    "seasonal_index_mom": "v2-seasonal-index",
     "index_projection": "v1-index-projection",
 }
 DEFAULT_MODEL_VERSION = "v0-naive"
 
 #: (model, benchmark) per target. Always two different rules — see below.
 DEFAULT_PAIRS: dict[str, tuple[str, str]] = {
-    "headline_mom": ("seasonal_naive", "mean_mom"),
+    # Both headline targets read one projected index, so they cannot contradict each
+    # other. seasonal_naive drops to the benchmark slot: it is what this replaced,
+    # which makes the skill number answer the question the change actually raises.
+    "headline_mom": ("seasonal_index_mom", "seasonal_naive"),
     # Original series, so the published seasonal shape is worth restoring.
     "headline_yoy": ("seasonal_index_projection", "random_walk"),
     # Already seasonally adjusted: a seasonal correction here would double-count.
@@ -452,10 +524,16 @@ def build_history(panel: pd.DataFrame, target: str) -> History:
 def _check_rule(name: str, target: str) -> None:
     if name not in RULES:
         raise KeyError(f"unknown rule {name!r}; have {sorted(RULES)}")
-    if name in YEAR_ENDED_ONLY_RULES and TARGETS[target][1] != MEASURE_CHANGE_PREV_YEAR:
+    measure = TARGETS[target][1]
+    if name in YEAR_ENDED_ONLY_RULES and measure != MEASURE_CHANGE_PREV_YEAR:
         raise ValueError(
             f"rule {name!r} produces a year-ended rate and cannot forecast {target!r}, "
             "which is a month-on-month series"
+        )
+    if name in MONTH_ON_MONTH_ONLY_RULES and measure != MEASURE_CHANGE_PREV_PERIOD:
+        raise ValueError(
+            f"rule {name!r} produces a month-on-month rate and cannot forecast "
+            f"{target!r}, which is a year-ended series"
         )
 
 

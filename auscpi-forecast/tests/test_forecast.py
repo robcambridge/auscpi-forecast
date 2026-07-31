@@ -87,6 +87,7 @@ def test_seasonal_naive_varies_across_horizons():
     path = forecast_path(
         "headline_mom",
         model="seasonal_naive",
+        benchmark="mean_mom",
         horizons=range(13),
         today=date(2026, 7, 30),
         panel=panel_with_history(),
@@ -101,6 +102,7 @@ def test_seasonal_naive_only_ever_looks_backwards():
     path = forecast_path(
         "headline_mom",
         model="seasonal_naive",
+        benchmark="mean_mom",
         horizons=[12],
         today=date(2026, 7, 30),
         panel=panel,
@@ -128,8 +130,22 @@ def test_model_version_distinguishes_the_projection_from_the_naive_rules():
     projected = forecast_path("headline_yoy", today=date(2026, 7, 30), panel=panel_with_history())
     assert all(r.model_version == "v2-seasonal-index" for r in projected.records)
 
-    naive = forecast_path("headline_mom", today=date(2026, 7, 30), panel=panel_with_history())
+    naive = forecast_path(
+        "headline_mom",
+        model="seasonal_naive",
+        benchmark="mean_mom",
+        today=date(2026, 7, 30),
+        panel=panel_with_history(),
+    )
     assert all(r.model_version == "v0-naive" for r in naive.records)
+
+
+def test_both_headline_targets_share_a_model_version():
+    """They are one projection read two ways, so the log must not imply otherwise."""
+    panel = panel_with_history()
+    mom = forecast_path("headline_mom", horizons=[0], today=date(2026, 7, 30), panel=panel)
+    yoy = forecast_path("headline_yoy", horizons=[0], today=date(2026, 7, 30), panel=panel)
+    assert mom.records[0].model_version == yoy.records[0].model_version == "v2-seasonal-index"
 
 
 def test_note_carries_the_release_date_when_the_calendar_knows_it():
@@ -316,6 +332,96 @@ def test_seasonal_rule_falls_back_when_the_adjusted_series_is_missing():
         panel=panel,
     )
     assert path.records[0].point == pytest.approx(((1.003**12) - 1) * 100, abs=1e-3)
+
+
+def test_the_two_headline_targets_are_one_forecast():
+    """The defect this closed: seasonal naive and the projection disagreed on a month.
+
+    With data through 2026-06 and an origin of 2026-07, the annual window ending at
+    h=11 is exactly the twelve forecast months h=0..11 — its base is the last
+    observation. So compounding the m/m path has to reproduce the year-ended point
+    at h=11, with no observed month in between to absorb a discrepancy.
+    """
+    panel = parse_sdmx_json(all_targets_doc(PERIODS, sa_factors=JULY_FACTORS))
+    kw = dict(horizons=range(13), today=date(2026, 7, 30), panel=panel)
+
+    mom = forecast_path("headline_mom", **kw)
+    yoy = forecast_path("headline_yoy", **kw)
+
+    compounded = 1.0
+    for record in mom.records[:12]:
+        compounded *= 1.0 + record.point / 100.0
+
+    assert mom.records[11].reference_month == yoy.records[11].reference_month == "2027-06"
+    # Points are logged to 3dp, so twelve of them carry ~0.006pp of rounding.
+    assert (compounded - 1.0) * 100.0 == pytest.approx(yoy.records[11].point, abs=1e-2)
+
+
+def test_the_monthly_path_is_read_off_the_projected_index():
+    from auscpi.forecast import build_history
+
+    panel = parse_sdmx_json(all_targets_doc(PERIODS, sa_factors=JULY_FACTORS))
+    hist = build_history(panel, "headline_mom")
+    levels = project_levels(hist, "2027-07", seasonal=True)
+
+    path = forecast_path("headline_mom", horizons=range(13), today=date(2026, 7, 30), panel=panel)
+    for record in path.records:
+        previous = add_months(record.reference_month, -1)
+        expected = (levels[record.reference_month] / levels[previous] - 1.0) * 100.0
+        assert record.point == pytest.approx(expected, abs=1e-3)
+
+
+def test_the_july_factor_shows_up_in_the_monthly_path():
+    """On a monthly rate a seasonal factor is the whole story, not a one-off shift.
+
+    July sits 0.4% above its neighbours in the fixture, so July is lifted by about
+    that much and the August after it pushed down by the same — a spread of ~0.8pp
+    between two adjacent horizons that a flat driver could not produce.
+    """
+    panel = parse_sdmx_json(all_targets_doc(PERIODS, sa_factors=JULY_FACTORS))
+    path = forecast_path("headline_mom", horizons=[0, 1], today=date(2026, 7, 30), panel=panel)
+
+    july, august = path.records
+    assert july.reference_month == "2026-07"
+    assert july.point - august.point == pytest.approx(0.8, abs=0.05)
+
+
+def test_the_monthly_path_falls_back_when_the_adjusted_series_is_missing():
+    """No 999901 in the vintage means no factors, so it degrades to the flat driver."""
+    from sdmx_fixtures import compound
+
+    n = len(PERIODS)
+    rates = [0.3] * n
+    panel = parse_sdmx_json(
+        sdmx(
+            {
+                HEADLINE_YOY_KEY: observations([3.8] * n),
+                HEADLINE_MOM_KEY: observations(rates),
+                HEADLINE_LEVEL_KEY: observations(compound(rates)),
+            },
+            PERIODS,
+        )
+    )
+    path = forecast_path("headline_mom", horizons=range(13), today=date(2026, 7, 30), panel=panel)
+    assert all(r.point == pytest.approx(0.3, abs=1e-6) for r in path.records)
+
+
+def test_a_month_on_month_rule_is_rejected_for_a_year_ended_target():
+    """The mirror of the year-ended guard: both divide the same projected levels."""
+    with pytest.raises(ValueError, match="year-ended series"):
+        forecast_path(
+            "headline_yoy",
+            model="seasonal_index_mom",
+            today=date(2026, 7, 30),
+            panel=panel_with_history(),
+        )
+
+
+def test_the_monthly_target_defaults_to_the_shared_projection():
+    model, benchmark = DEFAULT_PAIRS["headline_mom"]
+    assert model == "seasonal_index_mom"
+    # The rule it replaced, so the logged skill answers whether the change helped.
+    assert benchmark == "seasonal_naive"
 
 
 def test_seasonal_rule_is_the_default_only_for_the_original_target():

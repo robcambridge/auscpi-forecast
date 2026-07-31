@@ -16,7 +16,11 @@ Columns worth understanding:
   the field that makes look-ahead detectable by someone reading the file rather
   than trusting you: a backtest claiming h=1 while cutting off after the print
   is visible here.
-- `model_version` — `v0-naive` for everything the current tooling produces.
+- `model_version` — what produced the row. `v2-seasonal-index` for both headline
+  targets, `v1-index-projection` for the trimmed mean. The two headline targets
+  share a version on purpose: they are one projected index read two ways, and
+  versioning them apart would suggest they could move independently. Rows written
+  before 2026-07-31 carry `v0-naive`, when `headline_mom` was a separate rule.
 
 **Never edit an existing row** except to fill in `actual` after the print lands,
 and do that in a separate commit so the history shows the forecast and the
@@ -27,17 +31,47 @@ unreadable — nobody knows whether 0.3pp of error is good or dreadful.
 
 ## The current model is naive, and that is on purpose
 
-`v0-naive`. Logged now rather than when it is good, because a track record
-starting at n=1 with a weak model beats one starting at n=0 with a good one.
+Logged now rather than when it is good, because a track record starting at n=1
+with a weak model beats one starting at n=0 with a good one.
 
 | Target | Model | Benchmark |
 |---|---|---|
-| `headline_mom` | `seasonal_naive` — same calendar month, most recent year it was observed | `mean_mom` — 12-month mean |
-| `headline_yoy` | `seasonal_index_projection` — project the adjusted index, restore the published seasonal shape, take the year-ended ratio | `random_walk` — carry the last year-ended rate |
+| `headline_mom` | `seasonal_index_mom` — the projected index read as `level(m) / level(m-1)` | `seasonal_naive` — same calendar month, most recent year it was observed |
+| `headline_yoy` | `seasonal_index_projection` — the same projected index read as the year-ended ratio | `random_walk` — carry the last year-ended rate |
 | `trimmed_mean_yoy` | `index_projection` — as above without the seasonal step, the series being already adjusted | `random_walk` |
 
 The model and the benchmark are always different rules; pairing a rule against
 itself would report skill of exactly zero forever and look like diligence.
+
+### The headline targets are one forecast, not two
+
+They were not always. Until 2026-07-31 `headline_mom` was `seasonal_naive` and
+`headline_yoy` was the index projection — two rules over the same index, which
+duly contradicted each other. For July 2026 they said **+1.30%** and an implied
+**+0.70%**, and both numbers went into the log with nothing to tell a reader which
+one the model believed.
+
+Now the m/m path is read off the same projected level series as the year-ended
+path, so the arithmetic ties: compound the m/m path across the twelve months of an
+annual window and the year-ended point for that window comes back out. Measured on
+the live vintage, h=0..11 compounds to 3.7267 against a logged 3.727 at h=11 —
+the gap is the third decimal place the log rounds to.
+
+Two consequences worth stating plainly:
+
+- **`seasonal_naive` moved to the benchmark slot.** It is what this replaced, so
+  the logged skill number answers the question the change actually raises rather
+  than a more flattering one.
+- **Coherence is not accuracy.** Three targets driven by one projection can now be
+  wrong together, and one bad trend estimate moves all of them the same way. What
+  it buys is that an error is attributable to the projection instead of to an
+  unexplained disagreement between rules.
+
+The forecast is not rounded to match the published m/m, which the ABS gives to one
+decimal place. That leaves up to 0.05pp of scored error at h=0 that is measurement
+rather than model — a floor on measured accuracy, and negligible beside the errors
+at any longer horizon. Rounding to close it would hide the model's actual view to
+improve the scorecard.
 
 ### Why the year-ended paths project the index
 
@@ -80,6 +114,11 @@ Known weaknesses, so nobody has to discover them:
   between consecutive years, and no seasonal factor can know the direction. Only
   the determinations can — announced months ahead with quantified effects and
   dates. That gap is worth more than any further refinement here.
+
+  It is not hypothetical: the live h=0 point for July 2026 is +0.70%, which is
+  trend plus the recurring July factor and nothing else. If July 2026 carries an
+  administered movement like July 2025's, the forecast is light by most of a
+  point, and it will be the calendar rather than the model that could have known.
 - **The sample is ~27 monthly index observations**, so each seasonal factor rests
   on about two. Nothing here is statistically meaningful, and no claim of skill
   should be made from it.
