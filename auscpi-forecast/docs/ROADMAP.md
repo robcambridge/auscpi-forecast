@@ -24,7 +24,9 @@ Only goal: data starts accumulating today.
 - [x] ~~**SQM weekly asking rents**~~ — ruled out, their Terms of Service prohibit
       automated access (docs/DATA_SOURCES.md, "Sources ruled out")
 - [x] **NSW rental bond lodgements** — the replacement rent indicator, and the
-      input to the main forecasting edge. New-lease rents by postcode, CC-BY.
+      input to the rent roll-through. (Described here as "the main forecasting edge"
+      before it was measured; at 6.613% of the basket one component cannot be — see
+      the aggregation item in Phase 4.) New-lease rents by postcode, CC-BY.
       History captured 2026-07-31: 54 monthly workbooks, 2022-01 to 2026-06,
       1,465,157 lodgements, ~37 MB in `data/raw`. Monthly files run back to
       2022-01, not 2021-01 as first recorded here.
@@ -163,7 +165,24 @@ This is the project. Everything above exists to make this possible.
 - [ ] Services: wages (WPI) and unit labour costs
 - [ ] Seasonality estimated explicitly per component — at h≥1 you cannot observe
       it, so it has to be modelled
-- [ ] Aggregate to a headline path on published weights
+- [x] **Aggregate to a headline path on published weights** — `auscpi components`,
+      in `src/auscpi/aggregate.py`. A component swap nets its view against what the
+      top-down rule already implied for that class and weights the difference, so a
+      component that merely agrees changes nothing. Contributions stay attributable
+      per class.
+
+      **The result reframes what a single component can be worth.** Swapping the rent
+      roll-through into the headline moves it by at most **0.072pp** at h=12 and
+      0.02–0.05pp across most of the path — under the 0.1pp step the ABS rounds its
+      published rates to. The arithmetic is not subtle: rents are 6.613% of the
+      basket and the two rent views differ by at most ~1.1pp.
+
+      So no single component at this weight can move a published headline figure
+      unless it disagrees with the naive baseline by several points. The edge has to
+      be the combination — and components that disagree sharply are worth more than
+      components that are merely well modelled. Not wired into `auscpi forecast` or
+      the log: a swap below the rounding step would change the logged model without
+      changing any published number.
 
 ## Phase 5 — the administered price calendar (weeks 9–11)
 

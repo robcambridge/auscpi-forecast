@@ -47,12 +47,21 @@ Three components of the Australian CPI are unusually **pre-determined** — much
 of their future value is knowable today, from information a time-series model
 cannot see. That is the entire thesis.
 
-**Rents (~6%).** The ABS measures rents on the *stock* of dwellings, not on new
-leases. A change in asking rents today reaches the measured index gradually over
-the following year as existing leases roll. Today's asking rents therefore
-mechanically constrain measured rents six to twelve months out. This is the
-strongest single argument for the forecast framing over the nowcast one, because
-the advantage grows with horizon rather than shrinking.
+**Rents (6.6%).** The ABS measures rents on the *stock* of dwellings, not on new
+leases. A change in newly agreed rents today reaches the measured index gradually
+over the following year as existing leases roll, so today's new-lease rents
+mechanically constrain measured rents six to twelve months out. Measured from NSW
+rental bond lodgements — one row per newly signed lease — rather than asking rents,
+which were ruled out (see `docs/DATA_SOURCES.md`). This is the strongest single
+argument for the forecast framing over the nowcast one, because the advantage grows
+with horizon rather than shrinking.
+
+Built, and worth stating plainly: **on its own it moves the headline forecast by
+less than 0.1pp**, the step the ABS rounds to. At 6.6% of the basket, a component
+has to disagree with the naive baseline by several points to shift a published
+figure. The edge below is therefore the *combination* of these components, not any
+one of them — and components that disagree sharply are worth more than components
+that are merely well modelled.
 
 **Administered and policy-set prices.** Australia's CPI has an unusually high
 administered share, and those changes are announced in text, with quantified

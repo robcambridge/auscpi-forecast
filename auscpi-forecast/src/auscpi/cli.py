@@ -234,6 +234,79 @@ def rents(
 
 
 @app.command()
+def components(
+    horizons: int = typer.Option(12, help="Longest horizon. The path runs h=0..N."),
+    as_at: str = typer.Option(None, "--as-at", help="Use the vintage as at this instant."),
+) -> None:
+    """Show what swapping component models into the headline path would do.
+
+    Not wired into `auscpi forecast` or the public log. On current evidence the only
+    component that exists — rents — moves the headline by less than the 0.1pp step
+    the ABS rounds to. See auscpi/aggregate.py.
+    """
+    from auscpi.aggregate import ComponentSwap, component_baseline, load_weights, swap_components
+    from auscpi.build import load_panel
+    from auscpi.forecast import forecast_path
+    from auscpi.rents import RENTS_INDEX_ID, load_inputs, rent_path
+
+    cutoff = None
+    if as_at:
+        cutoff = datetime.fromisoformat(as_at)
+        if cutoff.tzinfo is None:
+            cutoff = cutoff.replace(tzinfo=UTC)
+
+    span = list(range(horizons + 1))
+    try:
+        path = forecast_path("headline_yoy", horizons=span, as_at=cutoff)
+        weights = load_weights()
+    except (FileNotFoundError, ValueError) as exc:
+        console.print(f"[red]cannot build the headline path[/red] {exc}")
+        raise typer.Exit(code=1) from exc
+
+    headline = {r.reference_month: r.point for r in path.records}
+    origin = path.records[0].reference_month
+
+    console.print("[dim]re-parsing bond snapshots from data/raw, this takes a minute…[/dim]")
+    measured, new_lease = load_inputs(as_at=cutoff)
+    points, _ = rent_path(measured, new_lease, origin=origin, horizons=span)
+
+    panel = load_panel("abs_cpi_monthly", as_at=cutoff)
+    swap = ComponentSwap(
+        index_id=RENTS_INDEX_ID,
+        label="Rents",
+        baseline=component_baseline(panel, RENTS_INDEX_ID, list(headline)),
+        override={p.reference_month: p.point for p in points},
+    )
+    adjusted, contributions = swap_components(headline, [swap], weights)
+
+    by_month = {c.reference_month: c for c in contributions}
+    table = Table("h", "month", "headline", "adjusted", "rents base", "rents model", "effect pp")
+    for record in path.records:
+        month = record.reference_month
+        c = by_month.get(month)
+        table.add_row(
+            str(record.horizon_months),
+            month,
+            f"{record.point:+.2f}",
+            f"{adjusted[month]:+.2f}",
+            "-" if c is None else f"{c.baseline:+.2f}",
+            "-" if c is None else f"{c.override:+.2f}",
+            "-" if c is None else f"{c.effect_pp:+.3f}",
+        )
+    console.print(table)
+
+    largest = max((abs(c.effect_pp) for c in contributions), default=0.0)
+    console.print(
+        f"rents weight {weights[RENTS_INDEX_ID]:.3f}% · largest effect {largest:.3f}pp"
+    )
+    if largest < 0.1:
+        console.print(
+            "[yellow]below the 0.1pp step the ABS rounds to[/yellow] — this component "
+            "cannot move a published headline figure on its own."
+        )
+
+
+@app.command()
 def forecast(
     target: str = typer.Option(
         None, help="One target, or omitted for every target this vintage supports."

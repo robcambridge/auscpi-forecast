@@ -197,10 +197,27 @@ That is now the second independent argument for Phase 5 — the first was the
 year-specific 1 July swing. Phase 5 is looking less like a later refinement and more
 like the thing two separate dead ends both point at.
 
-In rough value order from here: the administered-price calendar (Phase 5); a
-Sydney-only bond index if it still looks worth it, which needs the ABS postcode
-correspondence read rather than guessed; aggregation of components to a headline path
-on published weights; then quantiles by horizon.
+**Aggregation built 2026-08-01, and it resized the whole thesis.** `auscpi components`
+/ `src/auscpi/aggregate.py` swaps a component's view into the headline, netting it
+against what the top-down rule already implied for that class and weighting the
+difference. Swapping in the rent roll-through moves the headline by at most **0.072pp**
+— under the 0.1pp step the ABS rounds to. Rents are 6.613% of the basket and the two
+rent views differ by at most ~1.1pp; 0.066 x 1.1 is 0.07. Not wired into `auscpi
+forecast` or the log, because a swap below the rounding step changes the logged model
+without changing any published number.
+
+The consequence to carry forward: **no single component at this weight can move a
+published headline figure.** The edge has to be the combination, and a component that
+disagrees sharply with the naive baseline is worth more than one that is merely well
+modelled. That is an argument for prioritising breadth of coverage and for Phase 5,
+where administered changes can disagree with the baseline by a lot — the July 2025
+decomposition put ~0.90pp of the index on that year's own administered movement.
+
+In rough value order from here: the administered-price calendar (Phase 5), now with
+three independent arguments behind it — the 1 July swing, the CRA wedge, and the fact
+that only large baseline disagreements move the headline; then more Phase 3 components
+for breadth (fuel is next-cheapest and its collector already runs); a Sydney-only bond
+index only if it still looks worth it; then quantiles by horizon.
 
 **Log caught up 2026-08-01.** `log.csv` is now 78 rows: the original 39 at `539ae70`
 plus 39 at `b6625e1` carrying `seasonal_index_mom`. Two things to know when reading
