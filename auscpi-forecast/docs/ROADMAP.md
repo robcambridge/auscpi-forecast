@@ -73,6 +73,15 @@ project directory. `ci.yml`'s `paths-ignore` was repointed at the nested paths.
 Still to confirm in the browser: that Actions is enabled and that
 `FUELCHECK_API_KEY` / `FUELCHECK_API_SECRET` are set.
 
+**Health ignores backfills, and that is load-bearing.** A backfill stamps
+`fetched_at = now`, so capturing the FuelCheck archive on 2026-08-01 flipped
+fuelcheck from OVERDUE straight to "ok, 0d 0h" while the daily API collector had
+still not run since 2026-07-30. The check reported green *because* someone did
+something unrelated, and it gets worse the more history you capture. Cadence is now
+assessed only on scheduled runs, and a source with data but no scheduled run at all
+reports **backfill only** — which is what `nsw_rental_bonds` correctly shows, since
+its monthly workflow has never run either.
+
 ## Phase 2 — benchmarks and the first public path (weeks 2–3)
 
 - [x] Naive benchmarks: random walk, seasonal naive, Atkeson–Ohanian, midpoint

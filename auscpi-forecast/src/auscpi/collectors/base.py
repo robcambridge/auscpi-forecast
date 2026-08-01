@@ -45,6 +45,28 @@ def overdue_after(cadence: str) -> timedelta:
     return CADENCE_TOLERANCE.get(cadence, CADENCE_TOLERANCE["daily"])
 
 
+#: Note prefixes marking a snapshot as a history capture rather than a scheduled run.
+#: Two spellings are in the wild — the bond backfill wrote "backfill <period>" and the
+#: fuel archive wrote "archive <period>" — and data/raw is append-only, so the older
+#: spelling can be recognised but never normalised.
+BACKFILL_NOTE_PREFIXES = ("backfill", "archive")
+
+
+def is_backfill(entry: dict[str, Any]) -> bool:
+    """True when a manifest entry came from a backfill rather than a scheduled run.
+
+    The health check has to ignore these, and the reason is worth stating because it
+    is not obvious. A backfill writes `fetched_at = now`, so capturing three years of
+    archive makes a collector that has not actually run since July look freshly
+    collected. The check then reports green *because* somebody did something
+    unrelated — and it is self-concealing, since the more history you capture the
+    healthier a stalled pipeline appears. Observed live: backfilling the FuelCheck
+    archive on 2026-08-01 flipped fuelcheck from OVERDUE to "ok, 0d 0h" while the
+    daily API collector had still not run since 2026-07-30.
+    """
+    return (entry.get("note") or "").strip().lower().startswith(BACKFILL_NOTE_PREFIXES)
+
+
 @dataclass
 class CollectorResult:
     source: str

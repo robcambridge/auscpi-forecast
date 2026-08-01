@@ -557,27 +557,33 @@ def health(
     fails loudly when collection has stopped, which is the only way an unattended
     pipeline gets noticed before the gap is months wide.
     """
-    from auscpi.collectors.base import overdue_after
+    from auscpi.collectors.base import is_backfill, overdue_after
 
-    table = Table("source", "cadence", "last ok (UTC)", "age", "status", "last error")
+    table = Table("source", "cadence", "last scheduled (UTC)", "age", "status", "last error")
     now = datetime.now(UTC)
     overdue: list[str] = []
     never: list[str] = []
 
     for slug, cls in sorted(registry.items()):
         entries = read_manifest(slug)
-        oks = [e for e in entries if e["status"] == "ok"]
         errs = [e for e in entries if e["status"] == "error"]
+        # Backfills are excluded on purpose: they stamp fetched_at = now and would
+        # otherwise report a stalled collector as freshly collected. See is_backfill.
+        oks = [e for e in entries if e["status"] == "ok" and not is_backfill(e)]
+        backfilled = any(e["status"] == "ok" and is_backfill(e) for e in entries)
         tolerance = overdue_after(cls.cadence)
 
         if getattr(cls, "ruled_out", False):
-            status, age_s = "[dim]ruled out[/dim]", "-"
-            stamp = oks and datetime.fromisoformat(oks[-1]["fetched_at"]).strftime(
-                "%Y-%m-%d %H:%M"
-            ) or "never"
+            status, age_s, stamp = "[dim]ruled out[/dim]", "-", "never"
         elif not oks:
-            status, age_s, stamp = "[red]never collected[/red]", "-", "never"
-            never.append(slug)
+            age_s, stamp = "-", "never"
+            if backfilled:
+                # Data exists, but nothing has ever collected it on a schedule.
+                status = "[red]backfill only[/red]"
+                never.append(f"{slug} (backfill only)")
+            else:
+                status = "[red]never collected[/red]"
+                never.append(slug)
         else:
             last = datetime.fromisoformat(oks[-1]["fetched_at"])
             age = now - last
@@ -594,7 +600,12 @@ def health(
     console.print(table)
 
     if never:
-        console.print(f"[red]never collected:[/red] {', '.join(never)}")
+        console.print(f"[red]no scheduled collection:[/red] {', '.join(never)}")
+        console.print(
+            "[dim]'backfill only' means the data is there but nothing has ever "
+            "collected it on a schedule — history captured by hand, pipeline not "
+            "running.[/dim]"
+        )
     if overdue:
         console.print(f"[red]overdue:[/red] {', '.join(overdue)}")
     if not overdue and not never:

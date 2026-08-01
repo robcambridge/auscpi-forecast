@@ -129,6 +129,15 @@ under `auscpi-forecast/.github/` is invisible to GitHub and will silently never 
 (a stalled daily source used to look identical to a healthy monthly one), `--strict`
 exits non-zero, and `collect.yml` runs it after the commit step.
 
+**Health deliberately ignores backfill snapshots.** They stamp `fetched_at = now`, so
+capturing the FuelCheck archive flipped fuelcheck from OVERDUE to "ok, 0d 0h" while
+the daily collector still had not run — green *because* of an unrelated action, and
+self-concealing, since more history makes a dead pipeline look healthier. Cadence is
+assessed on scheduled runs only. A source with data but no scheduled run reports
+**backfill only**, which is currently true of `nsw_rental_bonds` as well as fuelcheck.
+Any new backfill must note itself with a `backfill`/`archive` prefix or it will
+re-open this hole.
+
 Collectors: `fuelcheck` (daily, **not currently collecting — see above**),
 `abs_cpi_monthly`,
 `abs_cpi_quarterly`, `abs_cpi_weights`, `abs_cpi_regional` (all on collect-abs.yml,

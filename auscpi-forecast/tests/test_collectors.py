@@ -58,6 +58,54 @@ def test_health_flags_an_overdue_source_and_strict_exits_nonzero(tmp_path, monke
     assert runner.invoke(app, ["health", "--strict"]).exit_code == 1
 
 
+def test_a_backfill_does_not_make_a_stalled_collector_look_healthy(tmp_path, monkeypatch):
+    """The failure this guards against was observed live.
+
+    Backfilling the FuelCheck archive stamped 42 snapshots with fetched_at = now and
+    flipped fuelcheck from OVERDUE to "ok, 0d 0h", while the daily API collector had
+    still not run for two days. Self-concealing: the more history you capture, the
+    healthier a stalled pipeline looks.
+    """
+    from datetime import UTC, datetime, timedelta
+
+    from typer.testing import CliRunner
+
+    from auscpi.cli import app
+    from auscpi.config import settings
+    from auscpi.storage import write_snapshot
+
+    monkeypatch.setattr(settings, "auscpi_data_dir", str(tmp_path / "data"))
+    now = datetime.now(UTC)
+    # A real scheduled run, days ago.
+    write_snapshot("fuelcheck", {"x": 1}, url="http://live", fetched_at=now - timedelta(days=5))
+    # A backfill just now, which must NOT count as a scheduled fetch.
+    write_snapshot("fuelcheck", b"PK", url="http://a", fetched_at=now, note="archive 2024-01")
+
+    result = CliRunner().invoke(app, ["health"])
+    assert "OVERDUE" in result.stdout, "a backfill masked a stalled collector"
+    assert CliRunner().invoke(app, ["health", "--strict"]).exit_code == 1
+
+
+def test_backfill_only_is_distinguished_from_never_collected(tmp_path, monkeypatch):
+    """The data is there; the pipeline is not running. Those are different faults."""
+    from datetime import UTC, datetime
+
+    from typer.testing import CliRunner
+
+    from auscpi.cli import app
+    from auscpi.config import settings
+    from auscpi.storage import write_snapshot
+
+    monkeypatch.setattr(settings, "auscpi_data_dir", str(tmp_path / "data"))
+    write_snapshot(
+        "nsw_rental_bonds", b"PK", url="http://a", fetched_at=datetime.now(UTC),
+        note="backfill 2024-01",
+    )
+
+    result = CliRunner().invoke(app, ["health"])
+    assert "backfill only" in result.stdout
+
+
 def test_health_is_quiet_when_a_source_is_fresh(tmp_path, monkeypatch):
     from datetime import UTC, datetime
 
