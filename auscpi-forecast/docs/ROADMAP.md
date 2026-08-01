@@ -199,8 +199,33 @@ model and no price scraper can see it.
       AER and IPART determinations, the annual private health insurance premium
       round, tobacco excise indexation, PBS co-payments, childcare subsidy
       changes, state energy rebates
-- [ ] Structured extraction per announcement: expenditure class, direction,
-      estimated percentage effect, effective date, population share, confidence
+- [x] **The schema, the store and the leakage guard** — `src/auscpi/administered.py`
+      and `config/administered_prices.csv`. An event carries expenditure class,
+      announced date, effective month, announced per cent, pass-through, confidence
+      and a required source URL. `override_path` turns events into a year-ended path
+      for the class, netting the announced movement against what the projection
+      already assumed for that month, so an event that matches expectations changes
+      nothing. That plugs straight into `aggregate.ComponentSwap`.
+
+      **`announced_date` is separate from `effective_month` and `visible_at` is the
+      only supported selector.** Filtering on the effective month would let a
+      February forecast use a March announcement — rule 3 for documents, and easier
+      to get wrong here than with a time series because the effective date is the
+      memorable one.
+
+      **Two things this measured.** The announced number is not the CPI effect: the
+      2025 and 2026 private health insurance rounds announced 3.73% and 4.41% and
+      class 40091 printed 2.38% and 3.52%, so pass-through was 0.64 and 0.80 — it
+      differs by a quarter between two consecutive events and cannot be assumed to
+      be 1. And the magnitude justifies the phase: 5.032% of the basket moving 3.5%
+      is ~0.18pp on the headline from one event, about two and a half times the
+      entire rent roll-through, public two months before the reference month began.
+
+- [ ] Corpus and extraction, per announcement. The schema above is the target.
+      Highest-value classes not yet covered: electricity (40055, 1.835%, state
+      rebates have swung it violently), tobacco excise (40090, 1.874%, indexed
+      twice yearly on a known schedule), pharmaceutical products (40094, 0.954%)
+      and child care (115498, 0.741%)
 - [ ] Forward calendar feeding directly into the h≥1 component paths
 - [ ] **Leakage test:** event features must improve the components they should
       affect and leave the others alone. If they improve unrelated components you

@@ -213,11 +213,35 @@ modelled. That is an argument for prioritising breadth of coverage and for Phase
 where administered changes can disagree with the baseline by a lot — the July 2025
 decomposition put ~0.90pp of the index on that year's own administered movement.
 
-In rough value order from here: the administered-price calendar (Phase 5), now with
-three independent arguments behind it — the 1 July swing, the CRA wedge, and the fact
-that only large baseline disagreements move the headline; then more Phase 3 components
-for breadth (fuel is next-cheapest and its collector already runs); a Sydney-only bond
-index only if it still looks worth it; then quantiles by horizon.
+**Administered price calendar started 2026-08-01, and it vindicates the phase.**
+`src/auscpi/administered.py` + `config/administered_prices.csv`: the schema, the store,
+the leakage guard and the arithmetic turning an event into a component override. Not
+the corpus or the extraction layer — those are next, and this is what they must
+produce.
+
+Two measured findings worth carrying:
+
+1. **One administered event beats the whole rent model.** The 1 April 2026 private
+   health insurance round moved class 40091 (5.032% of the basket) by 3.52%, about
+   0.18pp on the headline — ~2.5x the entire rent roll-through — and was public two
+   months before the reference month began.
+2. **The announced number is not the CPI effect.** Announced 3.73% and 4.41% in 2025
+   and 2026; the class printed 2.38% and 3.52%. Pass-through 0.64 then 0.80, because
+   the class also holds doctor and hospital fees that do not move on 1 April. It
+   differs by a quarter between consecutive events, so it is stored per event with a
+   confidence rather than fitted.
+
+**`announced_date` is separate from `effective_month` on purpose and `visible_at` is
+the only supported selector.** Filtering on the effective month lets a February
+forecast use a March announcement. That is rule 3 for documents and it is easier to
+get wrong here than with a time series, because the effective date is the memorable
+one.
+
+In rough value order from here: the corpus and extraction layer targeting this schema,
+starting with electricity (40055, state rebates have swung it violently) and tobacco
+excise (40090, scheduled twice yearly); then more Phase 3 components for breadth (fuel
+is next-cheapest and its collector already runs); a Sydney-only bond index only if it
+still looks worth it; then quantiles by horizon.
 
 **Log caught up 2026-08-01.** `log.csv` is now 78 rows: the original 39 at `539ae70`
 plus 39 at `b6625e1` carrying `seasonal_index_mom`. Two things to know when reading
