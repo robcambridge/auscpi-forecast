@@ -500,23 +500,63 @@ def fill_actual(
 
 
 @app.command()
-def health() -> None:
-    """Last successful fetch per source. A silent scraper is the main failure mode."""
-    table = Table("source", "cadence", "last ok (UTC)", "age", "last error")
+def health(
+    strict: bool = typer.Option(
+        False, "--strict", help="Exit non-zero if any source is overdue. For CI and cron."
+    ),
+) -> None:
+    """Is every source being fetched within its cadence? A silent collector is the
+    main failure mode, so this compares each age against its cadence rather than
+    printing ages and leaving the arithmetic to the reader.
+
+    `--strict` makes it usable as a monitoring step: a scheduled job that runs this
+    fails loudly when collection has stopped, which is the only way an unattended
+    pipeline gets noticed before the gap is months wide.
+    """
+    from auscpi.collectors.base import overdue_after
+
+    table = Table("source", "cadence", "last ok (UTC)", "age", "status", "last error")
     now = datetime.now(UTC)
+    overdue: list[str] = []
+    never: list[str] = []
+
     for slug, cls in sorted(registry.items()):
         entries = read_manifest(slug)
         oks = [e for e in entries if e["status"] == "ok"]
         errs = [e for e in entries if e["status"] == "error"]
-        if oks:
+        tolerance = overdue_after(cls.cadence)
+
+        if getattr(cls, "ruled_out", False):
+            status, age_s = "[dim]ruled out[/dim]", "-"
+            stamp = oks and datetime.fromisoformat(oks[-1]["fetched_at"]).strftime(
+                "%Y-%m-%d %H:%M"
+            ) or "never"
+        elif not oks:
+            status, age_s, stamp = "[red]never collected[/red]", "-", "never"
+            never.append(slug)
+        else:
             last = datetime.fromisoformat(oks[-1]["fetched_at"])
             age = now - last
             age_s = f"{age.days}d {age.seconds // 3600}h"
             stamp = last.strftime("%Y-%m-%d %H:%M")
-        else:
-            age_s, stamp = "-", "never"
-        table.add_row(slug, cls.cadence, stamp, age_s, (errs[-1]["note"] if errs else ""))
+            if age > tolerance:
+                status = f"[red]OVERDUE (>{tolerance.days}d)[/red]"
+                overdue.append(f"{slug} ({age.days}d, {cls.cadence})")
+            else:
+                status = "[green]ok[/green]"
+
+        table.add_row(slug, cls.cadence, stamp, age_s, status, (errs[-1]["note"] if errs else ""))
+
     console.print(table)
+
+    if never:
+        console.print(f"[red]never collected:[/red] {', '.join(never)}")
+    if overdue:
+        console.print(f"[red]overdue:[/red] {', '.join(overdue)}")
+    if not overdue and not never:
+        console.print("[green]every scheduled source is within its cadence.[/green]")
+    if strict and (overdue or never):
+        raise typer.Exit(code=1)
 
 
 @app.command("log-forecast")

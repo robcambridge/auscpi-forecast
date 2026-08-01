@@ -114,7 +114,16 @@ ticked off; this is the summary.
 → `auscpi fill-actual` → `auscpi score`. The first public path is logged and
 pushed: 39 rows, h=0..12, three targets, information cutoff 2026-06.
 
-Collectors: `fuelcheck` (daily, key works, runs in Actions), `abs_cpi_monthly`,
+**The unattended pipeline is not running, found 2026-08-01.** No `auscpi-bot` commit
+has ever landed; every snapshot in `data/raw` came from running the CLI by hand. There
+is one FuelCheck snapshot, from 2026-07-30. `auscpi health` now flags this (it
+previously printed ages without comparing them to the cadence, so a stalled daily
+source looked identical to a healthy one) and `--strict` exits non-zero, wired into
+`collect.yml` after the commit step. Fixing the schedule is the highest-priority item
+in the repo: everything else here assumes data accumulates.
+
+Collectors: `fuelcheck` (daily, **not currently collecting — see above**),
+`abs_cpi_monthly`,
 `abs_cpi_quarterly`, `abs_cpi_weights`, `abs_cpi_regional` (all on collect-abs.yml,
 1st of month), `nsw_rental_bonds` (monthly workflow; history backfilled 2026-07-31,
 54 files, 2022-01 to 2026-06, ~37 MB).

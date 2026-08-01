@@ -41,3 +41,12 @@ jobs:
           git add data/raw
           git diff --staged --quiet || git commit -m "data: collection $(date -u +%Y-%m-%d)"
           git push
+
+      # Deliberately AFTER the commit, so a stalled source still gets whatever data
+      # this run did collect. This is the step that makes "runs unattended" checkable
+      # rather than assumed: it fails the workflow when any source has gone past its
+      # cadence, which is the only way a silent collector gets noticed before the gap
+      # is months wide. data/raw is committed, so the checkout carries every
+      # manifest and this sees all sources, not just the daily ones.
+      - name: Check every source is within its cadence
+        run: auscpi health --strict

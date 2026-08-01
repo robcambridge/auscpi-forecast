@@ -132,6 +132,8 @@ class SQMRentsCollector(Collector):
     # Terms of Service prohibit automated access. Not a scheduling decision — do
     # not flip this without a licence from SQM. fetch() refuses regardless.
     enabled = False
+    # Not a scheduling decision: their terms prohibit automated access.
+    ruled_out = True
 
     def fetch(self) -> tuple[Any, str, int | None]:
         # Deliberately before any network call: flipping `enabled` alone must not

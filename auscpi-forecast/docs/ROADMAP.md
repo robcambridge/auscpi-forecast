@@ -39,6 +39,23 @@ Only goal: data starts accumulating today.
 **Done when:** `auscpi health` shows every source fetched within its cadence,
 three days running, untouched.
 
+**Status 2026-08-01: not met, and the check that was supposed to detect that could
+not.** `health` printed ages and left the comparison to the reader, so a daily
+collector sitting un-run for two days looked identical to a healthy one. It now
+evaluates each age against its cadence, reports a status, and `--strict` exits
+non-zero; `collect.yml` runs it after committing, so a stalled source fails the
+workflow instead of going unnoticed.
+
+What it currently reports: **fuelcheck OVERDUE**. There is exactly one FuelCheck
+snapshot, taken locally on 2026-07-30, and `git log` shows no `auscpi-bot` commit
+has ever landed — so no scheduled workflow has successfully collected anything since
+the repo was created on 2026-07-27. Every snapshot in `data/raw` was produced by
+running the CLI by hand. The likely cause is the unchecked item above: without
+`FUELCHECK_API_KEY` and `FUELCHECK_API_SECRET` in repo secrets the daily job cannot
+work, and Actions may not be enabled at all. This is the highest-priority fix in the
+repository — a forecast that needs someone to remember to run it is the thing this
+project is explicitly not trying to be.
+
 ## Phase 2 — benchmarks and the first public path (weeks 2–3)
 
 - [x] Naive benchmarks: random walk, seasonal naive, Atkeson–Ohanian, midpoint
