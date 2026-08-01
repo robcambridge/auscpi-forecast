@@ -114,13 +114,20 @@ ticked off; this is the summary.
 → `auscpi fill-actual` → `auscpi score`. The first public path is logged and
 pushed: 39 rows, h=0..12, three targets, information cutoff 2026-06.
 
-**The unattended pipeline is not running, found 2026-08-01.** No `auscpi-bot` commit
-has ever landed; every snapshot in `data/raw` came from running the CLI by hand. There
-is one FuelCheck snapshot, from 2026-07-30. `auscpi health` now flags this (it
-previously printed ages without comparing them to the cadence, so a stalled daily
-source looked identical to a healthy one) and `--strict` exits non-zero, wired into
-`collect.yml` after the commit step. Fixing the schedule is the highest-priority item
-in the repo: everything else here assumes data accumulates.
+**No workflow had ever run, and the cause was file placement (fixed 2026-08-01).**
+The git root is ONE LEVEL ABOVE this project, and `.github/workflows/` lived inside
+`auscpi-forecast/`. GitHub only scans `.github/workflows/` at the repository root, so
+it had never seen a workflow: empty Actions tab, no schedules, no runs, and every
+snapshot in `data/raw` produced by hand. `ci.yml` had never run either, so `ruff` and
+`pytest` were never enforced on a push.
+
+`.github/` now sits at the repo root and every job carries
+`defaults.run.working-directory: auscpi-forecast`. **Keep it there** — anything added
+under `auscpi-forecast/.github/` is invisible to GitHub and will silently never run.
+
+`auscpi health` now compares each age against its cadence rather than printing ages
+(a stalled daily source used to look identical to a healthy monthly one), `--strict`
+exits non-zero, and `collect.yml` runs it after the commit step.
 
 Collectors: `fuelcheck` (daily, **not currently collecting — see above**),
 `abs_cpi_monthly`,

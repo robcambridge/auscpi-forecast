@@ -1,0 +1,25 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ["auscpi-forecast/data/**", "auscpi-forecast/forecasts/**"]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    # The workflows live at the repository root because GitHub only scans
+    # .github/workflows there, but the Python project is one directory down, so
+    # every `run` step needs to start inside it.
+    defaults:
+      run:
+        working-directory: auscpi-forecast
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[model,dev]"
+      - run: ruff check src tests
+      - run: pytest -q

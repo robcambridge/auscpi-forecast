@@ -47,14 +47,24 @@ non-zero; `collect.yml` runs it after committing, so a stalled source fails the
 workflow instead of going unnoticed.
 
 What it currently reports: **fuelcheck OVERDUE**. There is exactly one FuelCheck
-snapshot, taken locally on 2026-07-30, and `git log` shows no `auscpi-bot` commit
-has ever landed — so no scheduled workflow has successfully collected anything since
-the repo was created on 2026-07-27. Every snapshot in `data/raw` was produced by
-running the CLI by hand. The likely cause is the unchecked item above: without
-`FUELCHECK_API_KEY` and `FUELCHECK_API_SECRET` in repo secrets the daily job cannot
-work, and Actions may not be enabled at all. This is the highest-priority fix in the
-repository — a forecast that needs someone to remember to run it is the thing this
-project is explicitly not trying to be.
+snapshot, taken locally on 2026-07-30, and no `auscpi-bot` commit has ever landed.
+
+**Root cause, found 2026-08-01: the workflows were in the wrong place.** This git
+repository's root is one level above the Python project, and every workflow lived at
+`auscpi-forecast/.github/workflows/`. GitHub only scans `.github/workflows/` at the
+**repository root**, so it had never seen a workflow file at all — no schedules, no
+runs, and an empty Actions tab. Not a secrets problem: secrets only matter once a
+workflow runs.
+
+The same mistake meant **`ci.yml` had never run either**, so `ruff check` and `pytest`
+were never enforced on a push despite the convention in CLAUDE.md saying they must
+pass before any commit. They passed only because they were run by hand.
+
+Fixed by moving `.github/` to the repository root and giving each job
+`defaults.run.working-directory: auscpi-forecast`, since the commands assume the
+project directory. `ci.yml`'s `paths-ignore` was repointed at the nested paths.
+Still to confirm in the browser: that Actions is enabled and that
+`FUELCHECK_API_KEY` / `FUELCHECK_API_SECRET` are set.
 
 ## Phase 2 — benchmarks and the first public path (weeks 2–3)
 
