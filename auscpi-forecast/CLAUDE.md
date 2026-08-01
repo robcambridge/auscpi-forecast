@@ -256,12 +256,36 @@ settle it. The robust claim is only that calibrated beats face value.
 Also note the stored 0.80 for the 2026 round was read off the outcome, so scoring
 with it returns a meaningless 0.039 — always pass the previous round's ratio.
 
-In rough value order from here: the corpus and extraction layer targeting this schema,
-starting with electricity (40055, state rebates have swung it violently) and tobacco
-excise (40090, scheduled twice yearly, the most deterministic event there is); then
-more Phase 3 components for breadth (fuel is next-cheapest and its collector already
-runs); a Sydney-only bond index only if it still looks worth it; then quantiles by
-horizon.
+**The component order was wrong and 2026-08-01 measured it.** `auscpi leverage` ranks
+classes by weight x monthly sd — how much headline movement each can produce. Median
+across 87 classes is 0.008pp. Top: international holiday travel 0.343pp, domestic
+holiday travel 0.201pp, automotive fuel 0.199pp, electricity 0.113pp, medical and
+hospital services 0.057pp. **Rents is not in the top twelve**, which is consistent with
+the whole rent model moving the headline by at most 0.072pp.
+
+Three consequences:
+
+- **Fuel is the best-value component in the plan** — third by leverage, max observed
+  contribution 1.098pp, the one high-leverage class that is genuinely anticipable
+  (futures + AUD forwards + known excise), and its collector already runs daily.
+- **Holiday travel is the largest source of headline movement and is nowhere in the
+  roadmap.** Combined 0.54pp. Not administered, probably not pre-determined, but
+  strongly seasonal.
+- **Leverage is not skill.** It says where the movement lives, not what can be
+  anticipated. Use it to choose which classes are worth asking the skill question
+  about, not as a claim that any of them are forecastable.
+
+**No electricity calendar entry, deliberately.** The 2026-27 DMO was decided May 2026,
+effective 1 July 2026 — a live case since July had not printed. But the determination
+is a range across regions and customer types (−3.4% to −7.2% NSW/SEQ, +1.4% SA) for
+standing-offer customers only, and there is no defensible route to a single class
+effect without inventing it. It is also the wrong driver: electricity's biggest moves
+are +22.3% Nov 2024, +18.5% Jan 2026, −14.6% Aug 2024 — rebate timing, not July. The
+corpus to build is the rebate instalment schedules.
+
+In rough value order from here: fuel (Phase 3 nowcast then Phase 4 forward path); the
+electricity rebate schedule as the first real extraction corpus; explicit seasonality
+for the holiday travel classes; then quantiles by horizon.
 
 **Log caught up 2026-08-01.** `log.csv` is now 78 rows: the original 39 at `539ae70`
 plus 39 at `b6625e1` carrying `seasonal_index_mom`. Two things to know when reading

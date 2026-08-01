@@ -70,6 +70,18 @@ from auscpi.parsers.abs_cpi import (
     series_for,
 )
 
+__all__ = [
+    "ClassLeverage",
+    "ComponentSwap",
+    "Contribution",
+    "administered_swaps",
+    "class_leverage",
+    "component_baseline",
+    "component_history",
+    "load_weights",
+    "swap_components",
+]
+
 #: Weights are published as per cent of the All groups basket.
 WEIGHT_TOTAL = 100.0
 
@@ -165,6 +177,85 @@ def load_weights() -> dict[str, float]:
         )
     frame = pd.read_csv(path)
     return {str(row.index_id): float(row.weight) for row in frame.itertuples()}
+
+
+@dataclass(frozen=True)
+class ClassLeverage:
+    """How much headline movement one expenditure class is capable of."""
+
+    index_id: str
+    label: str
+    weight: float
+    monthly_sd: float
+    months: int
+
+    @property
+    def leverage_pp(self) -> float:
+        """Weight times monthly standard deviation, in headline percentage points."""
+        return self.weight / WEIGHT_TOTAL * self.monthly_sd
+
+
+def class_leverage(
+    panel: pd.DataFrame,
+    weights: Mapping[str, float],
+    *,
+    min_months: int = 24,
+) -> list[ClassLeverage]:
+    """Rank expenditure classes by how much headline movement they can produce.
+
+    WHY THIS EXISTS. Component order in this project was set by intuition and the
+    intuition was wrong. Rents was built first, and on this measure it does not reach
+    the top twelve of 87 classes. The ranking on the current vintage:
+
+        International holiday travel   3.099%  sd 11.07   0.343pp
+        Domestic holiday travel        3.155%  sd  6.37   0.201pp
+        Automotive fuel                3.347%  sd  5.96   0.199pp
+        Electricity                    1.835%  sd  6.17   0.113pp
+        Medical and hospital services  5.032%  sd  1.13   0.057pp
+
+    against a median across all classes of 0.008pp. Weight alone is misleading — the
+    heaviest class, new dwelling purchase at 7.593%, moves so little that it ranks
+    sixth — and volatility alone is equally misleading. The product is what decides
+    whether modelling a class can change a published number.
+
+    LEVERAGE IS NOT SKILL, AND THE DIFFERENCE MATTERS. This measures how much a class
+    MOVES, not how much of that movement is anticipable. A class can top the list and
+    be worthless to model: international holiday travel is volatile largely because of
+    airfare and exchange-rate noise. Fuel is volatile AND partly anticipable from
+    refined product futures, which is why it outranks its own sd here in practical
+    terms. Read this as where the headline movement lives, then ask separately whether
+    any of it is forecastable.
+
+    `months` is reported per class because the monthly CPI widened its coverage over
+    time: some classes carry 106 observations and others 27, and a standard deviation
+    over 27 months is a weaker number than one over 106.
+    """
+    out: list[ClassLeverage] = []
+    for index_id, weight in weights.items():
+        try:
+            level = series_for(
+                panel, index_id, MEASURE_INDEX_NUMBER, TSEST_ORIGINAL, name="lvl"
+            ).dropna()
+        except ValueError:
+            continue
+        if len(level) < min_months:
+            continue
+        monthly = (level / level.shift(1) - 1.0) * 100.0
+        label = str(
+            panel.loc[panel["index_id"] == index_id, "index_name"].iloc[0]
+            if (panel["index_id"] == index_id).any()
+            else index_id
+        )
+        out.append(
+            ClassLeverage(
+                index_id=index_id,
+                label=label,
+                weight=float(weight),
+                monthly_sd=float(monthly.std()),
+                months=len(level),
+            )
+        )
+    return sorted(out, key=lambda c: c.leverage_pp, reverse=True)
 
 
 def administered_swaps(

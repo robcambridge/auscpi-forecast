@@ -159,6 +159,43 @@ def test_a_class_absent_from_the_panel_raises():
         component_baseline(panel, "30002", ["2026-07"], rule="index_projection")
 
 
+def test_leverage_is_weight_times_volatility_not_either_alone():
+    """A heavy stable class and a light volatile one can rank the same way round."""
+    from auscpi.aggregate import ClassLeverage
+
+    heavy_stable = ClassLeverage(
+        "97559", "New dwelling", weight=7.593, monthly_sd=0.62, months=106
+    )
+    light_volatile = ClassLeverage(
+        "40055", "Electricity", weight=1.835, monthly_sd=6.17, months=106
+    )
+
+    assert heavy_stable.leverage_pp == pytest.approx(0.0471, abs=1e-3)
+    assert light_volatile.leverage_pp == pytest.approx(0.1132, abs=1e-3)
+    # The lighter class has more than twice the leverage despite a quarter the weight.
+    assert light_volatile.leverage_pp > heavy_stable.leverage_pp
+
+
+def test_class_leverage_ranks_and_skips_short_histories():
+    from auscpi.aggregate import class_leverage
+
+    panel = panel_with_rents()
+    ranked = class_leverage(panel, {"30014": 6.6129, "10001": 100.0}, min_months=24)
+
+    scores = [c.leverage_pp for c in ranked]
+    assert scores == sorted(scores, reverse=True), "highest leverage must come first"
+    assert all(c.months >= 24 for c in ranked)
+    # A class the panel does not carry is skipped, not fatal.
+    assert "99999" not in {c.index_id for c in class_leverage(panel, {"99999": 1.0})}
+
+
+def test_class_leverage_respects_the_minimum_history():
+    from auscpi.aggregate import class_leverage
+
+    panel = panel_with_rents()
+    assert class_leverage(panel, {"30014": 6.6129}, min_months=1000) == []
+
+
 # --- the administered calendar, wired in ----------------------------------
 
 

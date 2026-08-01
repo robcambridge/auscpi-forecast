@@ -234,6 +234,58 @@ def rents(
 
 
 @app.command()
+def leverage(
+    top: int = typer.Option(15, help="How many classes to show."),
+    as_at: str = typer.Option(None, "--as-at", help="Use the vintage as at this instant."),
+) -> None:
+    """Rank expenditure classes by how much headline movement they can produce.
+
+    Where to spend modelling effort, measured rather than guessed. Leverage is
+    weight x monthly standard deviation, in headline percentage points.
+    """
+    from auscpi.aggregate import class_leverage, load_weights
+    from auscpi.build import load_panel
+
+    cutoff = None
+    if as_at:
+        cutoff = datetime.fromisoformat(as_at)
+        if cutoff.tzinfo is None:
+            cutoff = cutoff.replace(tzinfo=UTC)
+
+    try:
+        panel = load_panel("abs_cpi_monthly", as_at=cutoff)
+        weights = load_weights()
+    except (FileNotFoundError, ValueError) as exc:
+        console.print(f"[red]no data[/red] {exc}")
+        raise typer.Exit(code=1) from exc
+
+    ranked = class_leverage(panel, weights)
+    if not ranked:
+        console.print("[yellow]no class has enough history yet[/yellow]")
+        raise typer.Exit()
+
+    table = Table("#", "class", "weight %", "monthly sd", "leverage pp", "months")
+    for i, c in enumerate(ranked[:top], start=1):
+        table.add_row(
+            str(i),
+            f"{c.label[:38]} ({c.index_id})",
+            f"{c.weight:.3f}",
+            f"{c.monthly_sd:.2f}",
+            f"{c.leverage_pp:.3f}",
+            str(c.months),
+        )
+    console.print(table)
+
+    median = sorted(c.leverage_pp for c in ranked)[len(ranked) // 2]
+    console.print(f"median leverage across {len(ranked)} classes: {median:.3f}pp")
+    console.print(
+        "[dim]Leverage is how much a class MOVES, not how much of that is "
+        "anticipable. Read it as where the movement lives, then ask separately "
+        "whether any of it is forecastable.[/dim]"
+    )
+
+
+@app.command()
 def components(
     horizons: int = typer.Option(12, help="Longest horizon. The path runs h=0..N."),
     as_at: str = typer.Option(None, "--as-at", help="Use the vintage as at this instant."),

@@ -222,10 +222,24 @@ model and no price scraper can see it.
       entire rent roll-through, public two months before the reference month began.
 
 - [ ] Corpus and extraction, per announcement. The schema above is the target.
-      Highest-value classes not yet covered: electricity (40055, 1.835%, state
-      rebates have swung it violently), tobacco excise (40090, 1.874%, indexed
-      twice yearly on a known schedule), pharmaceutical products (40094, 0.954%)
-      and child care (115498, 0.741%)
+      **Pick targets with `auscpi leverage`, not intuition** — see the reordering
+      note at the end of this file. Electricity (40055) is the best administered
+      candidate at 0.113pp leverage, but see below on why no entry was added yet.
+
+- [ ] **Electricity needs the rebate schedule, not the DMO.** The 2026-27 Default
+      Market Offer was decided in May 2026 and took effect 1 July 2026 — a live
+      Phase 5 case, since July 2026 had not printed. It was NOT added to the
+      calendar, deliberately. The determination gives a range across regions and
+      customer types (residential flat rate −3.4% to −7.2% in NSW and SEQ, +1.4% in
+      SA), applies only to standing-offer customers, and there is no defensible way
+      to turn that into a single class effect without inventing the number.
+
+      More importantly it is the wrong driver. Electricity's largest monthly moves
+      are +22.3% (Nov 2024), +18.5% (Jan 2026), −14.6% (Aug 2024) and −12.3% (Oct
+      2024) — none of them in July, all of them rebate timing. The 1 July DMO moves
+      are comparatively small: +1.1%, +6.1%, −6.4%, +13.5% across 2022–25. So the
+      valuable corpus for electricity is the federal and state rebate schedules and
+      their instalment dates, not the AER determination.
 - [x] **Forward calendar feeding directly into the h≥1 component paths** —
       `aggregate.administered_swaps` builds component swaps from the calendar and
       `auscpi components` shows them beside the rent model. `information_cutoff` is
@@ -290,6 +304,43 @@ Two mitigations, both worth doing:
   fast, even though it is not the product.
 - Build the daily high-frequency index in Phase 7 early if you can. It validates
   against every print and accumulates evidence continuously.
+
+## The component order in this file was wrong, and here is the measurement
+
+Added 2026-08-01, from `auscpi leverage`. Leverage is weight x monthly standard
+deviation, in headline percentage points: how much movement a class is capable of
+contributing. Median across the 87 expenditure classes is 0.008pp.
+
+| Class | Weight | Monthly sd | Leverage |
+|---|---|---|---|
+| International holiday travel and accommodation | 3.099% | 11.07 | **0.343pp** |
+| Domestic holiday travel and accommodation | 3.155% | 6.37 | 0.201pp |
+| Automotive fuel | 3.347% | 5.96 | 0.199pp |
+| Electricity | 1.835% | 6.17 | 0.113pp |
+| Medical and hospital services | 5.032% | 1.13 | 0.057pp |
+| New dwelling purchase by owner-occupiers | 7.593% | 0.62 | 0.047pp |
+
+**Rents is not in the top twelve.** Phase 3 and Phase 4 put it first on the strength
+of the roll-through story, which is real — the mechanism holds — but the class barely
+moves, so modelling it well cannot change a published figure. That is consistent with
+the aggregation result: the whole rent model shifts the headline by 0.072pp at most.
+
+Two corrections to the ordering above, neither of which changes the phase structure:
+
+- **Holiday travel, both classes, is the largest single source of headline movement
+  and appears nowhere in this roadmap.** Combined leverage 0.54pp. It is not
+  administered and probably not pre-determined, but it is strongly seasonal, and
+  Phase 4's "seasonality estimated explicitly per component" is aimed straight at it
+  without ever naming it.
+- **Fuel is the best-value component in the plan.** Third by leverage at 0.199pp,
+  with a max observed contribution of 1.098pp, and it is the one high-leverage class
+  that is genuinely anticipable — refined product futures plus AUD forwards plus known
+  excise, per Phase 4. Its collector already runs daily.
+
+Read leverage as where the movement lives, not as where skill is available. A class
+can top the list and be unforecastable; international holiday travel is volatile
+largely because of airfare and exchange-rate noise. The question this answers is
+which classes are *worth* asking the skill question about.
 
 ## Explicitly out of scope
 
