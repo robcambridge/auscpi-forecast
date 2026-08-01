@@ -122,8 +122,31 @@ observations before skill is statistically visible.
 The volatile components, nowcast from observed prices. ~35–40% of the basket and
 much more of the month-to-month variance.
 
-- [ ] Fuel from FuelCheck. Near-deterministic. Volume-weight NSW stations, then
-      estimate the NSW-to-national gap.
+- [x] **Fuel from FuelCheck** — `parsers/fuelcheck.py` + `build_fuelcheck`, writing
+      `fuelcheck_daily.csv` and `fuelcheck_monthly.csv` over 42 months. **Monthly
+      growth correlates 0.973 with ABS automotive fuel (40081)**, and the March 2026
+      spike comes through at +35.6% against the ABS's +32.8%. The strongest component
+      in the repo by some distance, and it is a genuine nowcast: FuelCheck is daily
+      and real-time while the ABS publishes with a four-week lag.
+
+      Three things had to be right, none of them obvious:
+
+      - **Rows are price CHANGES, not observations.** Averaging the price column
+        weights stations by how often they re-price, which in a market with a
+        discount cycle runs ~2.7 c/L low, consistently. Prices are treated as a step
+        function instead: cross-sectional daily mean first, then average days.
+      - **Months must be chained.** Forward fill cannot fill backwards, so day one of
+        a file covered 205 of 2,041 stations — and a biased 205. Each month is seeded
+        with the previous month's closing prices, bounded to three months so closed
+        stations stop contributing forever.
+      - **Three of 42 files use day-first dates.** Left to infer, pandas read them
+        month-first, silently mis-dating every day ≤12 and failing on the rest: 70%
+        rejected and the surviving 30% wrong. ISO is now tried strictly first.
+
+      Still to do: **volume weighting**, and the NSW-to-national gap. Not cosmetic —
+      improving station coverage makes the correlation slightly *worse* (0.984 → 0.973),
+      which is the signature of the crude sample accidentally approximating volume
+      weighting, since busy metro sites re-price most.
 - [ ] Food and non-alcoholic beverages from the scraped basket (~17%)
 - [x] **Rents, current-month measurement** — `auscpi build` writes
       `data/curated/nsw_rental_bonds.parquet` (1,341,330 cleaned lodgements) and

@@ -324,11 +324,37 @@ Two things found doing it, both in docs/DATA_SOURCES.md:
   only full names skipped 23 of 119 files including ten consecutive months of 2024 —
   a backfill that quietly captures two thirds of the archive.
 
-In rough value order from here: the fuel component itself (parse the archive into a
-volume-weighted NSW price series, then the NSW-to-national gap — Phase 3 nowcast
-before the Phase 4 forward path); the electricity rebate schedule as the first real
-extraction corpus; explicit seasonality for the holiday travel classes; then quantiles
-by horizon.
+**Fuel component built 2026-08-01, and it is the strongest thing in the repo.**
+`parsers/fuelcheck.py` + `build_fuelcheck` over 42 months: monthly growth correlates
+**0.973** with ABS automotive fuel (40081), and March 2026's spike lands at +35.6%
+against the ABS's +32.8%. A genuine nowcast — FuelCheck is daily and real-time, the
+ABS publishes four weeks late. Compare rents (no demonstrated skill) and the
+administered calendar (helps, one event).
+
+Three traps, all found by looking rather than by tests failing:
+
+1. **Rows are price CHANGES, not observations.** Averaging the price column weights
+   stations by re-pricing frequency and runs ~2.7 c/L low, consistently, because
+   stations shave prices down and restore them in one jump. Step function instead:
+   daily cross-sectional mean first, then average days.
+2. **Months must be chained.** Day one of a file covered 205 of 2,041 stations, and a
+   biased 205. Each month is seeded from the previous month's closing prices, bounded
+   to `CARRY_FORWARD_MONTHS = 3` so closed stations stop contributing forever.
+3. **Three of 42 files use day-first dates.** Pandas inferred month-first, silently
+   mis-dating every day ≤12 and rejecting the rest — 70% dropped and the surviving
+   30% wrong. `_to_timestamp` tries ISO strictly first. Never let this fall back to
+   inference.
+
+**Do not tune the construction on the correlation.** Better station coverage scores
+slightly worse (0.984 no carry-in, 0.9775 unbounded, 0.9727 bounded). That is almost
+certainly volume weighting: busy metro sites re-price most, so the crude sample
+approximates what the ABS weights by. The fix is to weight by volume, not to pick
+whichever variant scores highest on 42 points.
+
+In rough value order from here: volume weighting and the NSW-to-national gap for fuel
+(it has the most headroom and the highest leverage); the electricity rebate schedule
+as the first real extraction corpus; explicit seasonality for the holiday travel
+classes; then quantiles by horizon.
 
 **Log caught up 2026-08-01.** `log.csv` is now 78 rows: the original 39 at `539ae70`
 plus 39 at `b6625e1` carrying `seasonal_index_mom`. Two things to know when reading

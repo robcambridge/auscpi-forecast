@@ -245,6 +245,126 @@ def build_nsw_rental_bonds(*, as_at: datetime | None = None) -> BuildResult:
     )
 
 
+#: How long a station may go without posting before it stops being carried forward.
+#: A station absent this long has probably closed, and carrying its last price
+#: forever biases the level; see build_fuelcheck.
+CARRY_FORWARD_MONTHS = 3
+
+
+def build_fuelcheck(
+    *, as_at: datetime | None = None, fuel: str | None = None
+) -> BuildResult:
+    """Assemble the FuelCheck archive into daily and monthly price series.
+
+    MONTHS ARE CHAINED, NOT INDEPENDENT, and that is the one thing to understand
+    before changing this. A price-history file records price CHANGES, so on its first
+    day only the stations that happened to post that day have a price — 10% of the
+    network in March 2026, and a biased 10%, since a station posts precisely when it
+    has just moved its price. Each month is therefore seeded with the closing prices
+    of the month before, which lifts day-one coverage to about 78%. Processing months
+    out of order, or in parallel, silently reintroduces the bias.
+
+    Only archive snapshots are read. The daily API captures are a different shape —
+    a snapshot of current prices rather than a month of changes — and mixing them
+    would double-count whichever days both cover.
+    """
+    from auscpi.parsers.fuelcheck import (
+        HEADLINE_FUEL,
+        Rejections,
+        clean_events,
+        closing_prices,
+        daily_prices,
+        monthly_prices,
+        parse_price_events,
+    )
+
+    source = "fuelcheck"
+    fuel = fuel or HEADLINE_FUEL
+    entries = [
+        e
+        for e in _select_snapshots(source, as_at)
+        if (e.get("note") or "").strip().lower().startswith(("archive", "backfill"))
+    ]
+    if not entries:
+        raise FileNotFoundError(
+            f"no {source} archive snapshots. Run `auscpi backfill-fuel` first — the "
+            "daily API captures cannot supply history."
+        )
+
+    # Oldest first: the carry-in only means anything in chronological order.
+    ordered = sorted(entries, key=lambda e: (e.get("note") or ""))
+    frames: list[pd.DataFrame] = []
+    rejected = Rejections()
+    carry: pd.Series | None = None
+    # Months since each carried station was last seen posting a price.
+    stale: dict[str, int] = {}
+    periods: list[str] = []
+
+    for entry in ordered:
+        period = (entry.get("note") or "").split()[-1]
+        try:
+            events, counts = clean_events(parse_price_events(load_snapshot(entry["payload_path"])))
+        except Exception as exc:  # noqa: BLE001 - the path is what makes it actionable
+            raise ValueError(f"failed to parse {entry['payload_path']}: {exc}") from exc
+        rejected = rejected + counts
+        frames.append(daily_prices(events, fuel=fuel, carry_in=carry))
+
+        # Roll the carry forward, dropping stations that have gone quiet for too
+        # long. Without a bound the panel only ever grows: a station that closed in
+        # 2023 keeps contributing its final price forever, and the series drifts
+        # further from reality the longer the history runs. There is no way to tell a
+        # closed station from one holding its price, so this is a judgement.
+        #
+        # NOTE THAT BETTER COVERAGE CORRELATES SLIGHTLY WORSE, which is worth knowing
+        # before anyone "fixes" it. Against the ABS class on monthly growth:
+        #
+        #     no carry-in at all      0.9840   218 thin days
+        #     unbounded carry         0.9775    66 thin days
+        #     carry bounded to 3m     0.9727    25 thin days
+        #
+        # The likely reason is that the ABS weights by volume and this does not.
+        # Stations that re-price constantly are the busy competitive metro sites where
+        # most fuel is actually sold, so the crude event-weighted sample accidentally
+        # approximates volume weighting, and adding quiet stations moves away from it.
+        # The differences are small, all three are excellent, and choosing between
+        # them by maximising a correlation over 42 points would be fitting noise. The
+        # methodologically defensible construction is kept and the real fix — weight
+        # by volume — is recorded in the parser's weaknesses instead.
+        closing = closing_prices(events, fuel=fuel)
+        seen = set(closing.index)
+        stale = {s: 0 if s in seen else n + 1 for s, n in stale.items()}
+        stale.update(dict.fromkeys(seen, 0))
+        stale = {s: n for s, n in stale.items() if n <= CARRY_FORWARD_MONTHS}
+        if carry is None:
+            carry = closing
+        else:
+            carry = closing.combine_first(carry)
+        carry = carry[carry.index.isin(stale)]
+        periods.append(period)
+
+    daily = pd.concat(frames, ignore_index=True).sort_values("date")
+    if daily.empty:
+        raise ValueError(f"{source} archive parsed to zero usable rows for {fuel!r}")
+    monthly = monthly_prices(daily)
+
+    outputs = [_write(daily, settings.curated_dir / f"{source}_daily.csv")]
+    outputs.append(_write(monthly, settings.curated_dir / f"{source}_monthly.csv"))
+
+    thin = int((daily["stations"] < 0.5 * daily["stations"].max()).sum())
+    return BuildResult(
+        source=source,
+        rows=len(daily),
+        periods=monthly["period"].nunique(),
+        latest_period=str(monthly["period"].max()),
+        outputs=outputs,
+        vintage=max(e["fetched_at"] for e in ordered),
+        note=(
+            f"fuel={fuel}; dropped {rejected.total:,} rows: {rejected.as_dict()}; "
+            f"{thin} day(s) below half peak station coverage"
+        ),
+    )
+
+
 def build_all(*, as_at: datetime | None = None, strict: bool = False) -> list[BuildResult]:
     """Build every source that has a snapshot.
 
@@ -266,6 +386,11 @@ def build_all(*, as_at: datetime | None = None, strict: bool = False) -> list[Bu
             raise
     try:
         results.append(build_nsw_rental_bonds(as_at=as_at))
+    except FileNotFoundError:
+        if strict:
+            raise
+    try:
+        results.append(build_fuelcheck(as_at=as_at))
     except FileNotFoundError:
         if strict:
             raise
