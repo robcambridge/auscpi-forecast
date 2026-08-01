@@ -10,6 +10,7 @@ day not collected is a day permanently absent from your sample.
 |---|---|---|---|
 | ABS Consumer Price Index, Australia | Monthly CPI, expenditure class level, from April 2024 | ABS Data API (SDMX) + XLSX downloads | CC-BY |
 | ABS quarterly CPI | Decades of quarterly history | ABS Data API | CC-BY |
+| ABS CPI by capital city | Rents by city, for components whose predictor is city-specific | ABS Data API, narrow slice | CC-BY |
 | RBA statistical tables | Cash rate, market rates, inflation expectations | CSV/XLSX | CC-BY |
 | NSW FuelCheck **archives** | Historical station-level prices | data.nsw.gov.au dataset files | CC-BY |
 | NSW Rental Bond Lodgements | Monthly **new-lease** rents by postcode: weekly rent, dwelling type, bedrooms | NSW Fair Trading .xlsx, monthly, back to Jan 2022 | CC-BY |
@@ -167,6 +168,24 @@ why the plain median is the wrong input to a roll-through model.
 Dataflow identifier **confirmed 2026-07-30: `ABS,CPI,2.0.0`** carries both
 monthly and quarterly. `GET /rest/dataflow/ABS` lists four CPI flows — `CPI`
 2.0.0, `CPI_M` 1.2.0, `CPI_Q` 1.0.0, `CPI_WEIGHTS` 1.0.0.
+
+**Capital-city detail** (verified 2026-07-31). REGION codes are `1` Sydney,
+`2` Melbourne, `3` Brisbane, `4` Adelaide, `5` Perth, `6` Hobart, `7` Darwin,
+`8` Canberra, `50` Australia. All indexes across all regions is 8,055 series
+against 1,191 national, which is why the national slices pin `REGION=50` and
+`abs_cpi_regional` instead wildcards REGION while naming a short list of
+expenditure classes — 56 series, ~39 KB. SDMX unions codes on a dimension with
+`+`, so the key is `.30014+115522...M`.
+
+Two things worth knowing before using it:
+
+- **`30014` and `115522` are both published as "Rents" and are byte-identical.**
+  Same values in every region and period. The collector takes both so that
+  collecting one and silently getting the other cannot happen; use `30014`.
+- Monthly regional rents run **2022-07 to 2026-06**, the same span as the national
+  series, so coming to this late cost no history. The regional slice's national
+  series matches `abs_cpi_monthly` exactly across all 48 months — a useful
+  cross-check that the slice is wired up right.
 
 **Do not use `CPI_M`.** It is the retired monthly *indicator*: its last
 observation is 2025-09, it has 39 index values rather than 166, and it is no

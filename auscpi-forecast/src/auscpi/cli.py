@@ -138,6 +138,10 @@ def rents(
         None, help="Months for the stock to roll through. Structural; default 12."
     ),
     as_at: str = typer.Option(None, "--as-at", help="Use the vintage as at this instant."),
+    region: str = typer.Option(
+        "australia",
+        help="Target city. National is the product; a city is a diagnostic on the pass-through.",
+    ),
     show_backtest: bool = typer.Option(
         False, "--backtest", help="Score the roll-through against carrying rents flat, by horizon."
     ),
@@ -147,7 +151,11 @@ def rents(
     Not logged to the public track record: this component does not have
     demonstrated skill on the sample available. See auscpi/rents.py.
     """
-    from auscpi.rents import ROLL_THROUGH_MONTHS, backtest, load_inputs, rent_path
+    from auscpi.rents import REGIONS, ROLL_THROUGH_MONTHS, backtest, load_inputs, rent_path
+
+    if region.lower() not in REGIONS:
+        raise typer.BadParameter(f"unknown region {region!r}; have {sorted(REGIONS)}")
+    region_code = REGIONS[region.lower()]
 
     cutoff = None
     if as_at:
@@ -156,7 +164,15 @@ def rents(
             cutoff = cutoff.replace(tzinfo=UTC)
 
     console.print("[dim]re-parsing bond snapshots from data/raw, this takes a minute…[/dim]")
-    measured, new_lease = load_inputs(as_at=cutoff)
+    try:
+        measured, new_lease = load_inputs(as_at=cutoff, region=region_code)
+    except FileNotFoundError as exc:
+        console.print(
+            f"[red]no data[/red] {exc}\n"
+            "Capital-city rents come from abs_cpi_regional; run "
+            "`auscpi collect abs_cpi_regional` first."
+        )
+        raise typer.Exit(code=1) from exc
     # h=0 is the first month of measured rents the ABS has NOT published, matching
     # the nowcast-as-h=0 convention in forecast.py.
     from auscpi.rents import add_months
@@ -185,7 +201,7 @@ def rents(
         )
     console.print(table)
     console.print(
-        f"roll-through {calibration.roll_through_months}m · "
+        f"{region.lower()} · roll-through {calibration.roll_through_months}m · "
         f"beta {calibration.beta:.3f} alpha {calibration.alpha:+.3f} on "
         f"{calibration.n} overlapping year-ended pairs · cutoff {calibration.information_cutoff}"
     )

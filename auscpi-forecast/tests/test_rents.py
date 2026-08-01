@@ -218,6 +218,36 @@ def test_backtest_returns_nothing_rather_than_raising_on_a_short_sample():
     assert backtest(measured, flow, roll_through_months=12) == []
 
 
+def test_measured_rents_defaults_to_national_not_a_city():
+    """Sydney fits better; the product is still the national CPI."""
+    from sdmx_fixtures import observations, sdmx
+
+    from auscpi.parsers.abs_cpi import parse_sdmx_json
+    from auscpi.rents import REGIONS, measured_rents
+
+    assert REGIONS["australia"] == "50"
+    periods = months("2025-01", 6)
+    # MEASURE.INDEX.TSEST.REGION.FREQ by position; REGION position 0 is Australia.
+    panel = parse_sdmx_json(
+        sdmx({"2:4:0:0:0": observations([100.0, 101.0, 102.0, 103.0, 104.0, 105.0])}, periods)
+    )
+    national = measured_rents(panel)
+    assert len(national) == 6
+    assert float(national.iloc[0]) == pytest.approx(100.0)
+
+
+def test_an_unknown_region_is_not_silently_national():
+    from sdmx_fixtures import observations, sdmx
+
+    from auscpi.parsers.abs_cpi import parse_sdmx_json
+    from auscpi.rents import measured_rents
+
+    periods = months("2025-01", 6)
+    panel = parse_sdmx_json(sdmx({"2:4:0:0:0": observations([100.0] * 6)}, periods))
+    with pytest.raises(ValueError):
+        measured_rents(panel, region="1")
+
+
 def test_the_default_roll_through_is_twelve_months():
     """Structural, not tuned. Changing it is a modelling decision, not a knob."""
     assert ROLL_THROUGH_MONTHS == 12

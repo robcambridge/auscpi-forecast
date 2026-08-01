@@ -35,9 +35,10 @@ on previous period) and 3 (change on previous year). Monthly runs 2017-09 to
 2026-06 and quarterly back to 1948-Q3, which is the long sample the
 Atkeson–Ohanian and random-walk benchmarks need.
 
-Capital-city detail (REGION 1..8) is deliberately left out: it is six times the
-payload every month and the forecast target is the national series. Add a region
-collector if a city breakdown is ever wanted.
+Capital-city detail (REGION 1..8) is deliberately left out of the national slices:
+all indexes across all regions is 8,055 series against 1,191, and the forecast
+target is the national series. `abs_cpi_regional` below is that region collector,
+and it stays narrow — a short list of expenditure classes rather than the lot.
 
 RE-REFERENCING. The quarterly series was re-referenced in the December 2025
 release from 2011-12 = 100.0 to September month 2025 = 100.00, published to two
@@ -182,6 +183,49 @@ class ABSQuarterlyCPICollector(_ABSCPICollector):
     key = KEY_QUARTERLY
     # A quarter prints about four weeks after it ends, so ~120 days is normal.
     max_staleness_days = 240
+
+
+#: Expenditure classes worth having capital-city detail for. Deliberately a short
+#: list, not a wildcard: all indexes across all regions is 8,055 series where this
+#: is 56, and every entry has to earn its place by being a component whose
+#: predictor is city-specific.
+#:
+#: 30014 is Rents, the target of the roll-through model. 115522 is ALSO published
+#: as "Rents" — same name, different code — so both are captured and the build
+#: decides. Collecting one and silently getting the other is the kind of mistake
+#: that only shows up months later.
+REGIONAL_INDEX_CLASSES = ("30014", "115522")
+
+#: SDMX unions codes on a dimension with "+".
+KEY_REGIONAL_MONTHLY = f".{'+'.join(REGIONAL_INDEX_CLASSES)}...M"
+
+
+class ABSRegionalCPICollector(_ABSCPICollector):
+    """Capital-city detail for the few classes whose predictors are city-specific.
+
+    WHY THIS EXISTS. The rent roll-through is estimated from NSW bond lodgements
+    against national measured rents, and the pass-through comes out near 0.5 — new
+    leases move about twice as much as measured rents. Some of that gap is
+    geography rather than economics: Sydney ran hotter than the national average
+    over the sample, so a NSW predictor against an eight-city target is mismatched
+    by construction. Sydney rents make that testable instead of assumed.
+
+    NSW bond lodgements are Sydney-dominated but not Sydney-only, so this narrows
+    the mismatch rather than removing it. Removing it needs the ABS postcode
+    correspondence and a Sydney-only bond index; whether that is worth building
+    depends on what this shows first.
+
+    Region codes, from the live response: 1 Sydney, 2 Melbourne, 3 Brisbane,
+    4 Adelaide, 5 Perth, 6 Hobart, 7 Darwin, 8 Canberra, 50 Australia. Monthly
+    regional rents run 2022-07 to 2026-06, the same span as the national series,
+    so nothing is lost by having come to this late.
+    """
+
+    source = "abs_cpi_regional"
+    cadence = "monthly"
+    enabled = False  # monthly cadence, daily runner — see SCHEDULING above
+    key = KEY_REGIONAL_MONTHLY
+    max_staleness_days = 150
 
 
 class ABSCPIWeightsCollector(_ABSCPICollector):

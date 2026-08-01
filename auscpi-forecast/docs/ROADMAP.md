@@ -112,10 +112,28 @@ This is the project. Everything above exists to make this possible.
 
       Nothing from this is logged to `forecasts/log.csv`.
 
-- [ ] **Split Sydney from the rest of NSW in the bond index.** The tractable part
-      of the β≈0.5 pass-through puzzle. Needs the ABS postcode correspondence read,
-      not postcode ranges guessed at. Postcode is already carried through to the
-      curated records.
+- [x] **Measure how much of the pass-through gap is geography.** Done 2026-07-31,
+      and it needed no postcode work at all — the blocker was on the ABS side, not
+      the bond side. `abs_cpi_regional` collects rents by capital city (56 series,
+      ~39 KB, not the 8,055-series all-regions payload), and `auscpi rents --region
+      sydney` re-fits against the geographically matched target.
+
+      β rises from 0.478 to 0.667, closing about a third of the distance to full
+      pass-through. It is an amplitude effect, not a level one: Sydney and national
+      rents grew almost identically (5.58 vs 5.39 %/yr), but the national series
+      averages eight cities whose cycles are out of phase and so swings less. β by
+      city — Sydney 0.667, Perth 0.500, Australia 0.478, Brisbane 0.439, Melbourne
+      0.426 — puts Sydney top, which is the sanity check worth having: a NSW
+      predictor mapping most strongly to Sydney is what a real signal looks like.
+
+      Sydney's *skill* is nonetheless worse (+0.05 at h=6 against +0.24 national).
+      On 8–14 points that settles nothing, but it is the wrong direction.
+
+- [ ] **A Sydney-only bond index**, if it is still worth it. NSW lodgements are
+      Sydney-dominated but not Sydney-only, so this would narrow the remaining gap.
+      It needs the ABS postcode correspondence read rather than postcode ranges
+      guessed at, which is real work for a residual share of a partial explanation.
+      Do the CRA item first — it is cheaper and probably larger.
 - [ ] **Confirm the Commonwealth Rent Assistance treatment.** The ABS measures rent
       net of CRA, so the increases over this sample damp measured rent inflation
       against gross market rents. β currently absorbs that as if it were a constant

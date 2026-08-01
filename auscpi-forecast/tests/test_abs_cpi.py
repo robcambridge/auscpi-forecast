@@ -72,6 +72,24 @@ def test_both_collectors_registered_with_distinct_keys():
     assert ABSQuarterlyCPICollector.key == "...50.Q"
 
 
+def test_the_regional_collector_stays_narrow():
+    """All indexes across all regions is 8,055 series; this slice is 56.
+
+    The wildcard is on REGION only. Widening the INDEX slot to a wildcard would
+    quietly turn a 39 KB monthly capture into a multi-megabyte one, which is the
+    reason the national slices exclude regions in the first place.
+    """
+    from auscpi.collectors.abs_cpi import REGIONAL_INDEX_CLASSES, ABSRegionalCPICollector
+
+    assert registry["abs_cpi_regional"] is ABSRegionalCPICollector
+    assert ABSRegionalCPICollector.cadence == "monthly"
+    # MEASURE.INDEX.TSEST.REGION.FREQ — every measure, listed classes, every
+    # adjustment, EVERY REGION, monthly.
+    assert ABSRegionalCPICollector.key == ".30014+115522...M"
+    assert "30014" in REGIONAL_INDEX_CLASSES, "rents is the reason this collector exists"
+    assert "" not in REGIONAL_INDEX_CLASSES, "an empty code would wildcard the INDEX slot"
+
+
 def test_private_base_is_not_registered():
     assert not any(slug.startswith("_") for slug in registry)
     assert abs_cpi._ABSCPICollector not in registry.values()

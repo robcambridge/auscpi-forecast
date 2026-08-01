@@ -33,6 +33,10 @@ from auscpi.storage import load_snapshot, read_manifest, snapshots_as_at
 ABS_SOURCES = {
     "abs_cpi_monthly": "abs_cpi_monthly",
     "abs_cpi_quarterly": "abs_cpi_quarterly",
+    # Capital-city detail for a short list of classes. Same SDMX shape as the
+    # national slices, so it needs no parser of its own — only the region column,
+    # which the panel has carried all along.
+    "abs_cpi_regional": "abs_cpi_regional",
 }
 
 

@@ -30,8 +30,26 @@ WHAT IS STRUCTURAL AND WHAT IS FITTED.
   rents move roughly twice as much as measured ones, so the pass-through is a half,
   not a one, and at least three things are inside that number:
 
-    - NSW against national. The bond data is NSW; expenditure class 30014 is
-      Australia. Sydney ran hotter than the national average over this sample.
+    - NSW against national, and this one is now MEASURED rather than guessed at.
+      Re-fitting against Sydney rents (`--region sydney`, from abs_cpi_regional)
+      raises beta from 0.478 to 0.667, closing about a third of the distance to a
+      full pass-through. Note that the two targets grew almost identically — Sydney
+      5.58%/yr against Australia 5.39%/yr — so this is not a level effect. It is
+      amplitude: the national series averages eight cities whose rent cycles are
+      out of phase, which damps its swings, and a NSW predictor matches Sydney's
+      amplitude far better than the average of eight.
+
+      The reassuring part is the ordering. Across the five cities tried, beta is
+      highest for Sydney (0.667), then Perth 0.500, Australia 0.478, Brisbane 0.439,
+      Melbourne 0.426. A NSW predictor mapping most strongly to Sydney is what a
+      real signal looks like; had Melbourne come top, the fit would have been
+      picking up a common national trend rather than rents.
+
+      The unreassuring part is that Sydney's SKILL is worse, not better: +0.05 at
+      h=6 against +0.24 national, +0.27 at h=12 against +0.56. On eight to fourteen
+      evaluation points that settles nothing, but a better-identified parameter
+      forecasting worse is exactly the pattern that should stop anyone declaring
+      victory here.
     - Commonwealth Rent Assistance. The ABS measures rent net of CRA, so the
       increases legislated over this period damp measured rent inflation relative
       to gross market rents. Worth confirming against the ABS release notes and
@@ -42,8 +60,11 @@ WHAT IS STRUCTURAL AND WHAT IS FITTED.
       below market, because re-letting to a sitting tenant avoids a vacancy.
 
   Splitting those apart is what would turn beta from a fudge factor into a
-  forecast. Sydney-versus-national is the tractable one and needs the ABS postcode
-  correspondence; see parsers/nsw_rental_bonds.py.
+  forecast. Geography is now measured and accounts for roughly a third of the gap.
+  A Sydney-ONLY bond index would narrow it further — NSW lodgements are
+  Sydney-dominated but not Sydney-only — and that needs the ABS postcode
+  correspondence, which is a real piece of work for a residual share of an already
+  partial explanation. CRA is the cheaper remaining lead.
 
 WHAT THE EVIDENCE ACTUALLY SHOWS, WHICH IS LESS THAN THE MECHANISM PROMISES.
 Measured in a pseudo-real-time backtest, calibrating only on data available at each
@@ -79,9 +100,25 @@ import pandas as pd
 
 from auscpi.parsers.abs_cpi import (
     MEASURE_INDEX_NUMBER,
+    REGION_AUSTRALIA,
     TSEST_ORIGINAL,
     series_for,
 )
+
+#: Capital-city region codes, as published. Sydney is the one that matters here:
+#: the predictor is NSW, so Sydney is the geographically matched target and the
+#: others exist to show whether the fit is picking up rents or picking up a trend.
+REGIONS = {
+    "australia": REGION_AUSTRALIA,
+    "sydney": "1",
+    "melbourne": "2",
+    "brisbane": "3",
+    "adelaide": "4",
+    "perth": "5",
+    "hobart": "6",
+    "darwin": "7",
+    "canberra": "8",
+}
 
 #: Months a lease takes to roll through the stock. Structural — see the module
 #: docstring on why this is not tuned to the backtest.
@@ -119,15 +156,25 @@ class Calibration:
         return self.alpha + self.beta * new_lease_yoy
 
 
-def measured_rents(panel: pd.DataFrame) -> pd.Series:
-    """The ABS measured rent index, Original, national.
+def measured_rents(panel: pd.DataFrame, *, region: str = REGION_AUSTRALIA) -> pd.Series:
+    """The ABS measured rent index, Original.
 
     Original rather than seasonally adjusted: everything below is compared
     year-ended, which removes the annual pattern without depending on the ABS's
     adjustment of a single expenditure class.
+
+    NATIONAL IS THE DEFAULT AND SHOULD STAY THAT WAY. Sydney is the better-matched
+    target for a NSW predictor and the fit says so, but the thing this project
+    forecasts is the national CPI, where rents are 6.613% of the basket. A Sydney
+    series is a diagnostic, not the product.
     """
     return series_for(
-        panel, RENTS_INDEX_ID, MEASURE_INDEX_NUMBER, TSEST_ORIGINAL, name="measured_rents"
+        panel,
+        RENTS_INDEX_ID,
+        MEASURE_INDEX_NUMBER,
+        TSEST_ORIGINAL,
+        region=region,
+        name="measured_rents",
     )
 
 
@@ -395,7 +442,9 @@ def backtest(
     return out
 
 
-def load_inputs(*, as_at: datetime | None = None) -> tuple[pd.Series, pd.Series]:
+def load_inputs(
+    *, as_at: datetime | None = None, region: str = REGION_AUSTRALIA
+) -> tuple[pd.Series, pd.Series]:
     """Both series, routed through the as-at aware build so rule 3 holds.
 
     Slow on purpose: the bond side re-parses every monthly workbook rather than
@@ -406,7 +455,13 @@ def load_inputs(*, as_at: datetime | None = None) -> tuple[pd.Series, pd.Series]
     from auscpi.build import load_bond_records, load_panel
     from auscpi.parsers.nsw_rental_bonds import index_frame
 
-    measured = measured_rents(load_panel("abs_cpi_monthly", as_at=as_at))
+    # National comes from the long-standing monthly slice, which every vintage has;
+    # capital cities only exist in abs_cpi_regional, collected from 2026-07-31. So a
+    # backtest run `--as-at` an earlier date can still do the national path, which
+    # is the one that matters, and fails honestly on a city rather than silently
+    # substituting the national series.
+    source = "abs_cpi_monthly" if region == REGION_AUSTRALIA else "abs_cpi_regional"
+    measured = measured_rents(load_panel(source, as_at=as_at), region=region)
     records, _, _ = load_bond_records(as_at=as_at)
     new_lease = index_frame(records).set_index("period")["index"]
     return measured, new_lease

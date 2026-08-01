@@ -28,6 +28,11 @@ TRIMMED_MOM_KEY = "1:1:1:0:0"
 TRIMMED_LEVEL_KEY = "2:1:1:0:0"
 # 999901 "All groups CPI, seasonally adjusted" — INDEX position 3, TSEST position 1.
 HEADLINE_SA_LEVEL_KEY = "2:3:1:0:0"
+# 30014 Rents — INDEX position 4. REGION position 1 is Sydney, for the regional
+# slice the rent roll-through reads. Both are appended to the dimension lists below
+# so every key above keeps its meaning.
+RENTS_LEVEL_KEY = "2:4:0:0:0"
+RENTS_SYDNEY_LEVEL_KEY = "2:4:0:1:0"
 
 DIMENSIONS = [
     {
@@ -45,6 +50,7 @@ DIMENSIONS = [
             {"id": "999902", "name": "Trimmed Mean"},
             {"id": "30002", "name": "Bread and cereal products"},
             {"id": "999901", "name": "All groups CPI, seasonally adjusted"},
+            {"id": "30014", "name": "Rents"},
         ],
     },
     {
@@ -54,7 +60,10 @@ DIMENSIONS = [
             {"id": "20", "name": "Seasonally Adjusted"},
         ],
     },
-    {"id": "REGION", "values": [{"id": "50", "name": "Australia"}]},
+    {
+        "id": "REGION",
+        "values": [{"id": "50", "name": "Australia"}, {"id": "1", "name": "Sydney"}],
+    },
     {"id": "FREQ", "values": [{"id": "M", "name": "Monthly"}]},
 ]
 

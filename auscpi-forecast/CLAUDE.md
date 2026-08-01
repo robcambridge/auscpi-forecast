@@ -115,9 +115,9 @@ ticked off; this is the summary.
 pushed: 39 rows, h=0..12, three targets, information cutoff 2026-06.
 
 Collectors: `fuelcheck` (daily, key works, runs in Actions), `abs_cpi_monthly`,
-`abs_cpi_quarterly`, `abs_cpi_weights` (all on collect-abs.yml, 1st of month),
-`nsw_rental_bonds` (monthly workflow; history backfilled 2026-07-31, 54 files,
-2022-01 to 2026-06, ~37 MB).
+`abs_cpi_quarterly`, `abs_cpi_weights`, `abs_cpi_regional` (all on collect-abs.yml,
+1st of month), `nsw_rental_bonds` (monthly workflow; history backfilled 2026-07-31,
+54 files, 2022-01 to 2026-06, ~37 MB).
 
 **Two traps that already bit once. Do not rediscover them:**
 
@@ -168,11 +168,28 @@ measured ones. At least three things are inside it — NSW vs national, CRA nett
 and partial pass-through within the stock — and separating them is what would turn β
 from a fudge factor into a forecast.
 
-In rough value order from here: split Sydney from the rest of NSW in the bond index
-(the tractable part of β, needs the ABS postcode correspondence); confirm the CRA
-treatment and effective dates against the ABS release notes; the administered-price
-calendar (Phase 5, the only thing that can resolve the year-specific 1 July swing,
-which is worth more than any driver refinement); then quantiles by horizon.
+**Geography measured 2026-07-31, and it is about a third of β.** New collector
+`abs_cpi_regional` (rents by capital city, 56 series, ~39 KB, on collect-abs.yml).
+Re-fitting against Sydney rents raises β from 0.478 to 0.667. It is an amplitude
+effect, not a level one — Sydney and national rents grew almost identically, but the
+national series averages eight out-of-phase city cycles and so swings less. β is
+highest for Sydney of the five cities tried, which is the sanity check worth having.
+Sydney's *skill* is nonetheless worse, on a sample too small to mean much either way.
+National stays the default: it is what the project forecasts, and a city is a
+diagnostic.
+
+Two ABS gotchas found while doing it: `30014` and `115522` are both published as
+"Rents" and are byte-identical, and the regional slice's national series matches the
+`abs_cpi_monthly` one exactly across all 48 months, which is the cross-check that
+says the new collector is wired up right.
+
+In rough value order from here: confirm the CRA treatment and effective dates
+against the ABS release notes (cheaper than the remaining geography work and
+probably a larger share of β); a Sydney-only bond index if that still looks worth
+it, which needs the ABS postcode correspondence read rather than guessed; the
+administered-price calendar (Phase 5, the only thing that can resolve the
+year-specific 1 July swing, which is worth more than any driver refinement); then
+quantiles by horizon.
 
 **Not started and possibly blocked:** the grocery basket (~17% of the basket)
 needs Coles/Woolworths terms checked first, and on the SQM precedent may fail the

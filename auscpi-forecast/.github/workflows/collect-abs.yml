@@ -40,6 +40,12 @@ jobs:
       - name: Collect quarterly CPI
         run: auscpi collect abs_cpi_quarterly
 
+      # Capital-city detail for the few classes whose predictors are city-specific
+      # (rents, for the roll-through). A narrow slice — 56 series, ~39 KB — not the
+      # 8,055-series all-regions payload.
+      - name: Collect regional CPI
+        run: auscpi collect abs_cpi_regional
+
       # Reweighted annually, but only ~31 KB, and collecting it monthly means the
       # reweight is captured whenever it lands rather than being missed for a year.
       - name: Collect CPI weights
