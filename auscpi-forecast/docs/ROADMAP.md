@@ -226,10 +226,31 @@ model and no price scraper can see it.
       rebates have swung it violently), tobacco excise (40090, 1.874%, indexed
       twice yearly on a known schedule), pharmaceutical products (40094, 0.954%)
       and child care (115498, 0.741%)
-- [ ] Forward calendar feeding directly into the h≥1 component paths
-- [ ] **Leakage test:** event features must improve the components they should
-      affect and leave the others alone. If they improve unrelated components you
-      have a bug or a leak. Not optional.
+- [x] **Forward calendar feeding directly into the h≥1 component paths** —
+      `aggregate.administered_swaps` builds component swaps from the calendar and
+      `auscpi components` shows them beside the rent model. `information_cutoff` is
+      a required argument threaded to `visible_at`, so an event announced after the
+      forecast cannot reach it.
+
+      Measured with `administered.event_value` on class 40091, forecasting from data
+      published before the 17 February 2026 announcement and scoring April–June:
+      no calendar 1.026, pass-through 0.64 → **0.704**, pass-through 1.00 → 0.906.
+      0.64 is the previous round's realised ratio and the only one knowable at the
+      time, so that is out of sample: a 31% error reduction, and a calibrated
+      pass-through captures about two and a half times the benefit of taking the
+      announcement at face value.
+
+      Caveat kept with the number: the ranking of the face-value line is sensitive to
+      where the data is truncated — cutting at end-February instead makes the
+      baseline better and pushes face-value to *worse* than no calendar. One event
+      cannot settle that. The robust claim is only that a calibrated pass-through
+      beats face value in both cuts.
+
+- [x] **Leakage test** — two properties, both in `tests/test_aggregate.py`. An event
+      announced after the information cutoff produces no swap at all. An event moves
+      only the class it names, and contributes exactly zero in months before its
+      effective month. Neither is a smoke test: filtering on effective month instead
+      of announced date would pass every other test in this repo.
 
 ## Phase 6 — density and attribution (weeks 11–13)
 

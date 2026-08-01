@@ -209,6 +209,69 @@ def override_path(
     return out
 
 
+def event_value(
+    panel: pd.DataFrame,
+    event: AdministeredEvent,
+    *,
+    passthrough: float | None = None,
+    horizons: int = 3,
+) -> dict[str, float]:
+    """Did knowing about this event help? MAE on the class, with and against without.
+
+    The forecast is cut off at the month before the announcement, so the event is
+    news at the moment it is used. Returns mean absolute error on the class's
+    year-ended rate over the effective month and the `horizons` months after it.
+
+    `passthrough` overrides the stored ratio, which is the only honest way to run
+    this on an event whose stored ratio was derived from the outcome: pass the
+    PREVIOUS event's realised ratio and the answer becomes genuinely out of sample.
+
+    Not a real-time backtest. The panel is today's vintage truncated by period, not
+    the vintage as it stood then, because backfilled snapshots record when they were
+    fetched and none predates 2026-07. This checks the arithmetic, not real-time
+    skill.
+    """
+    from dataclasses import replace
+
+    from auscpi.aggregate import component_history
+    from auscpi.parsers.abs_cpi import MEASURE_INDEX_NUMBER, TSEST_ORIGINAL, series_for
+
+    cutoff_month = f"{event.announced_date.year:04d}-{event.announced_date.month:02d}"
+    known = panel[panel["period"] < cutoff_month]
+    if known.empty:
+        return {}
+
+    used = event if passthrough is None else replace(event, passthrough=passthrough)
+    months = [add_months(event.effective_month, i) for i in range(horizons + 1)]
+
+    hist = component_history(known, event.index_id)
+    without = override_path(hist, [], months)
+    with_event = override_path(hist, [used], months)
+
+    level = series_for(
+        panel, event.index_id, MEASURE_INDEX_NUMBER, TSEST_ORIGINAL, name="lvl"
+    ).dropna()
+
+    errors_without: list[float] = []
+    errors_with: list[float] = []
+    for month in months:
+        base = add_months(month, -12)
+        if month not in level.index or base not in level.index:
+            continue
+        actual = (float(level.loc[month]) / float(level.loc[base]) - 1.0) * 100.0
+        errors_without.append(abs(without[month] - actual))
+        errors_with.append(abs(with_event[month] - actual))
+
+    if not errors_with:
+        return {}
+    return {
+        "n": len(errors_with),
+        "mae_without": sum(errors_without) / len(errors_without),
+        "mae_with": sum(errors_with) / len(errors_with),
+        "passthrough": used.passthrough,
+    }
+
+
 def estimate_passthrough(
     panel: pd.DataFrame, events: list[AdministeredEvent]
 ) -> list[tuple[AdministeredEvent, float]]:

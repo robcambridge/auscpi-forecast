@@ -52,8 +52,13 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from datetime import date
+from typing import TYPE_CHECKING
 
 import pandas as pd
+
+if TYPE_CHECKING:
+    from auscpi.administered import AdministeredEvent
 
 from auscpi.forecast import RULES, History
 from auscpi.parsers.abs_cpi import (
@@ -160,6 +165,75 @@ def load_weights() -> dict[str, float]:
         )
     frame = pd.read_csv(path)
     return {str(row.index_id): float(row.weight) for row in frame.itertuples()}
+
+
+def administered_swaps(
+    panel: pd.DataFrame,
+    months: Sequence[str],
+    *,
+    information_cutoff: date,
+    events: Sequence[AdministeredEvent] | None = None,
+    rule: str = "seasonal_index_projection",
+) -> list[ComponentSwap]:
+    """Component swaps built from the administered calendar, leakage guard applied.
+
+    `information_cutoff` is not optional and is threaded to `visible_at`, so an event
+    announced after the forecast was made cannot reach it. Passing the calendar
+    straight in and filtering on effective month instead is the mistake that would
+    make every backtest here look good for the wrong reason.
+
+    A class the vintage does not carry is skipped rather than fatal: the calendar is
+    hand-maintained and may name a class before the panel has it.
+
+    MEASURED, on the one event with an outcome to check against. `administered.
+    event_value` reproduces this: class 40091, forecast from data published before
+    the 17 February 2026 announcement, scored over April to June 2026.
+
+        no calendar                                   MAE 1.026
+        calendar, pass-through 0.64                   MAE 0.704
+        calendar, pass-through 1.00                   MAE 0.906
+
+    0.64 is the ratio realised at the previous round and the only one knowable at the
+    time, so the middle line is genuinely out of sample: the calendar cuts the error
+    by 31%, and a calibrated pass-through captures roughly two and a half times the
+    benefit that taking the announcement at face value does. That gap is the argument
+    for `passthrough` being a required field.
+
+    Two cautions on those numbers. The stored 0.80 for this event was read off the
+    outcome, so scoring with it returns a near-perfect 0.039 and means nothing — pass
+    the previous round's ratio instead, as above. And the ranking of the third line
+    is sensitive to where the data is truncated: cutting at end-February rather than
+    before the announcement makes the baseline much better and pushes face-value
+    pass-through to WORSE than no calendar at all. One event cannot settle that, so
+    the claim made here is only the robust one: a calibrated pass-through beats face
+    value in both cuts.
+
+    Not a real-time backtest: the panel is today's vintage truncated by period, not
+    the vintage as it stood then, because backfilled snapshots honestly record when
+    they were fetched and none predates 2026-07. It validates the arithmetic, not
+    real-time skill.
+    """
+    from auscpi.administered import for_class, load_events, override_path, visible_at
+
+    calendar = list(events) if events is not None else load_events()
+    usable = visible_at(calendar, information_cutoff)
+
+    swaps: list[ComponentSwap] = []
+    for index_id in sorted({e.index_id for e in usable}):
+        try:
+            hist = component_history(panel, index_id)
+        except ValueError:
+            continue
+        mine = for_class(usable, index_id)
+        swaps.append(
+            ComponentSwap(
+                index_id=index_id,
+                label=mine[0].label if len(mine) == 1 else f"{index_id} ({len(mine)} events)",
+                baseline=component_baseline(panel, index_id, months, rule=rule),
+                override=override_path(hist, mine, list(months)),
+            )
+        )
+    return swaps
 
 
 def swap_components(

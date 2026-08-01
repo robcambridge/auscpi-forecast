@@ -237,11 +237,31 @@ forecast use a March announcement. That is rule 3 for documents and it is easier
 get wrong here than with a time series, because the effective date is the memorable
 one.
 
+**Calendar wired into the component path 2026-08-01, with the leakage test done.**
+`aggregate.administered_swaps` takes a required `information_cutoff` threaded to
+`visible_at`; `auscpi components` shows calendar events beside the rent model. Two
+leakage properties are tested: an event announced after the cutoff produces no swap,
+and an event moves only the class it names and contributes zero before its effective
+month. Filtering on effective month instead of announced date would pass every other
+test in this repo, which is why those two exist.
+
+`administered.event_value` scores an event against what printed: class 40091 from
+data published before the 17 February announcement gives no calendar 1.026,
+pass-through 0.64 → 0.704, pass-through 1.00 → 0.906. A calibrated pass-through is
+worth about 2.5x face value. **Do not quote a stronger version of this.** An earlier
+scratch run truncating at end-February showed face-value doing worse than no calendar
+at all; that ranking does not survive the shipped truncation, and one event cannot
+settle it. The robust claim is only that calibrated beats face value.
+
+Also note the stored 0.80 for the 2026 round was read off the outcome, so scoring
+with it returns a meaningless 0.039 — always pass the previous round's ratio.
+
 In rough value order from here: the corpus and extraction layer targeting this schema,
 starting with electricity (40055, state rebates have swung it violently) and tobacco
-excise (40090, scheduled twice yearly); then more Phase 3 components for breadth (fuel
-is next-cheapest and its collector already runs); a Sydney-only bond index only if it
-still looks worth it; then quantiles by horizon.
+excise (40090, scheduled twice yearly, the most deterministic event there is); then
+more Phase 3 components for breadth (fuel is next-cheapest and its collector already
+runs); a Sydney-only bond index only if it still looks worth it; then quantiles by
+horizon.
 
 **Log caught up 2026-08-01.** `log.csv` is now 78 rows: the original 39 at `539ae70`
 plus 39 at `b6625e1` carrying `seasonal_index_mom`. Two things to know when reading

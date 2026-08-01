@@ -8,6 +8,7 @@ from sdmx_fixtures import RENTS_LEVEL_KEY, all_targets_doc, compound, observatio
 from auscpi.administered import (
     AdministeredEvent,
     estimate_passthrough,
+    event_value,
     for_class,
     load_events,
     override_path,
@@ -209,6 +210,49 @@ def test_the_shipped_calendar_loads_and_every_event_is_sourced():
         assert e.announced_date < date.fromisoformat(f"{e.effective_month}-01"), (
             f"{e.label} was not announced before its effective month began"
         )
+
+
+def test_event_value_scores_the_event_against_what_printed():
+    """Knowing about a planted jump must beat not knowing about it."""
+    n = len(PERIODS)
+    rates = [0.3] * n
+    jump = PERIODS.index("2025-06")
+    rates[jump] = 3.0
+    doc = all_targets_doc(PERIODS)
+    series = doc["data"]["dataSets"][0]["series"]
+    series["0:4:0:0:0"] = observations([3.7] * n)
+    series["1:4:0:0:0"] = observations(rates)
+    series[RENTS_LEVEL_KEY] = observations(compound(rates))
+    panel = parse_sdmx_json(doc)
+
+    e = event(
+        index_id="30014",
+        effective_month="2025-06",
+        announced_pct=3.0,
+        passthrough=1.0,
+        announced_date=date(2025, 4, 15),
+    )
+    result = event_value(panel, e, horizons=3)
+    assert result["mae_with"] < result["mae_without"]
+    assert result["n"] > 0
+
+
+def test_event_value_honours_a_passthrough_override():
+    """The only honest way to score an event whose stored ratio came from the outcome."""
+    n = len(PERIODS)
+    rates = [0.3] * n
+    rates[PERIODS.index("2025-06")] = 3.0
+    doc = all_targets_doc(PERIODS)
+    series = doc["data"]["dataSets"][0]["series"]
+    series["0:4:0:0:0"] = observations([3.7] * n)
+    series["1:4:0:0:0"] = observations(rates)
+    series[RENTS_LEVEL_KEY] = observations(compound(rates))
+    panel = parse_sdmx_json(doc)
+
+    e = event(index_id="30014", effective_month="2025-06", announced_pct=3.0, passthrough=1.0,
+              announced_date=date(2025, 4, 15))
+    assert event_value(panel, e, passthrough=0.5)["passthrough"] == pytest.approx(0.5)
+    assert event_value(panel, e)["passthrough"] == pytest.approx(1.0)
 
 
 def test_estimate_passthrough_recovers_a_planted_ratio():

@@ -157,3 +157,119 @@ def test_a_class_absent_from_the_panel_raises():
     panel = panel_with_rents()
     with pytest.raises(ValueError):
         component_baseline(panel, "30002", ["2026-07"], rule="index_projection")
+
+
+# --- the administered calendar, wired in ----------------------------------
+
+
+def admin_event(**kw):
+    from datetime import date
+
+    from auscpi.administered import AdministeredEvent
+
+    base = dict(
+        index_id="30014",
+        label="Test round",
+        announced_date=date(2026, 2, 17),
+        effective_month="2026-09",
+        announced_pct=5.0,
+        passthrough=1.0,
+        confidence="announced",
+        source_url="https://example.gov.au/x",
+    )
+    base.update(kw)
+    return AdministeredEvent(**base)
+
+
+def months_from(start: str, n: int) -> list[str]:
+    from auscpi.forecast import add_months
+
+    return [add_months(start, i) for i in range(n)]
+
+
+def test_an_event_announced_after_the_cutoff_cannot_reach_the_forecast():
+    """The leakage test, at the layer that builds swaps. Rule 3 for documents.
+
+    Same event, same effective month; the only difference is whether the forecast
+    had been made yet when the announcement landed.
+    """
+    from datetime import date
+
+    from auscpi.aggregate import administered_swaps
+
+    panel = panel_with_rents()
+    months = months_from("2026-07", 13)
+    e = admin_event(announced_date=date(2026, 2, 17))
+
+    after = administered_swaps(
+        panel, months, information_cutoff=date(2026, 3, 1), events=[e]
+    )
+    before = administered_swaps(
+        panel, months, information_cutoff=date(2026, 1, 31), events=[e]
+    )
+
+    assert len(after) == 1, "an announced event should be usable"
+    assert before == [], "an event announced after the cutoff must not be visible"
+
+
+def test_an_event_moves_only_the_class_it_names():
+    """The roadmap's leakage test: affect what it should, leave the rest alone.
+
+    An event on rents must not touch the food class, and the aggregation must not
+    quietly spread it across the basket.
+    """
+    from datetime import date
+
+    from auscpi.aggregate import administered_swaps
+
+    panel = panel_with_rents()
+    months = months_from("2026-07", 13)
+    swaps = administered_swaps(
+        panel,
+        months,
+        information_cutoff=date(2026, 3, 1),
+        events=[admin_event(index_id="30014")],
+    )
+    assert [s.index_id for s in swaps] == ["30014"]
+
+    headline = dict.fromkeys(months, 3.0)
+    adjusted, contributions = swap_components(headline, swaps, WEIGHTS)
+    assert {c.index_id for c in contributions} == {"30014"}
+    # Months before the effective month are untouched, so no contribution is non-zero
+    # ahead of it.
+    early = [c for c in contributions if c.reference_month < "2026-09"]
+    assert all(c.effect_pp == pytest.approx(0.0, abs=1e-9) for c in early)
+
+
+def test_a_calendar_class_missing_from_the_vintage_is_skipped_not_fatal():
+    """The calendar is hand-maintained and may name a class before the panel has it."""
+    from datetime import date
+
+    from auscpi.aggregate import administered_swaps
+
+    panel = panel_with_rents()
+    months = months_from("2026-07", 13)
+    swaps = administered_swaps(
+        panel,
+        months,
+        information_cutoff=date(2026, 3, 1),
+        events=[admin_event(index_id="30014"), admin_event(index_id="40091")],
+    )
+    assert [s.index_id for s in swaps] == ["30014"]
+
+
+def test_swaps_from_the_calendar_net_against_the_same_baseline_rule():
+    """A swap must be comparable with the rule the headline used, or it double-counts."""
+    from datetime import date
+
+    from auscpi.aggregate import administered_swaps
+
+    panel = panel_with_rents()
+    months = months_from("2026-07", 13)
+    swap = administered_swaps(
+        panel, months, information_cutoff=date(2026, 3, 1), events=[admin_event()]
+    )[0]
+
+    expected = component_baseline(panel, "30014", months)
+    for month in months:
+        assert swap.baseline[month] == pytest.approx(expected[month], abs=1e-9)

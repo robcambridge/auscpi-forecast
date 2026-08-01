@@ -244,7 +244,13 @@ def components(
     component that exists — rents — moves the headline by less than the 0.1pp step
     the ABS rounds to. See auscpi/aggregate.py.
     """
-    from auscpi.aggregate import ComponentSwap, component_baseline, load_weights, swap_components
+    from auscpi.aggregate import (
+        ComponentSwap,
+        administered_swaps,
+        component_baseline,
+        load_weights,
+        swap_components,
+    )
     from auscpi.build import load_panel
     from auscpi.forecast import forecast_path
     from auscpi.rents import RENTS_INDEX_ID, load_inputs, rent_path
@@ -271,38 +277,54 @@ def components(
     points, _ = rent_path(measured, new_lease, origin=origin, horizons=span)
 
     panel = load_panel("abs_cpi_monthly", as_at=cutoff)
-    swap = ComponentSwap(
-        index_id=RENTS_INDEX_ID,
-        label="Rents",
-        baseline=component_baseline(panel, RENTS_INDEX_ID, list(headline)),
-        override={p.reference_month: p.point for p in points},
-    )
-    adjusted, contributions = swap_components(headline, [swap], weights)
+    swaps = [
+        ComponentSwap(
+            index_id=RENTS_INDEX_ID,
+            label="Rents",
+            baseline=component_baseline(panel, RENTS_INDEX_ID, list(headline)),
+            override={p.reference_month: p.point for p in points},
+        )
+    ]
+    # The administered calendar, with the leakage guard on the forecast's own cutoff
+    # rather than today: an event announced later must not reach a backtest.
+    calendar_cutoff = (cutoff.date() if cutoff else datetime.now(UTC).date())
+    swaps += [
+        s
+        for s in administered_swaps(panel, list(headline), information_cutoff=calendar_cutoff)
+        if s.index_id != RENTS_INDEX_ID  # rents already has a component model above
+    ]
+    adjusted, contributions = swap_components(headline, swaps, weights)
 
-    by_month = {c.reference_month: c for c in contributions}
-    table = Table("h", "month", "headline", "adjusted", "rents base", "rents model", "effect pp")
+    by_month: dict[str, list] = {}
+    for c in contributions:
+        by_month.setdefault(c.reference_month, []).append(c)
+
+    table = Table("h", "month", "headline", "adjusted", "total effect pp", "movers")
     for record in path.records:
         month = record.reference_month
-        c = by_month.get(month)
+        here = by_month.get(month, [])
+        material = [c for c in here if abs(c.effect_pp) >= 0.005]
         table.add_row(
             str(record.horizon_months),
             month,
             f"{record.point:+.2f}",
             f"{adjusted[month]:+.2f}",
-            "-" if c is None else f"{c.baseline:+.2f}",
-            "-" if c is None else f"{c.override:+.2f}",
-            "-" if c is None else f"{c.effect_pp:+.3f}",
+            f"{sum(c.effect_pp for c in here):+.3f}",
+            ", ".join(f"{c.label} {c.effect_pp:+.3f}" for c in material) or "-",
         )
     console.print(table)
 
-    largest = max((abs(c.effect_pp) for c in contributions), default=0.0)
-    console.print(
-        f"rents weight {weights[RENTS_INDEX_ID]:.3f}% · largest effect {largest:.3f}pp"
-    )
-    if largest < 0.1:
+    for index_id in sorted({c.index_id for c in contributions}):
+        cs = [c for c in contributions if c.index_id == index_id]
+        largest = max(abs(c.effect_pp) for c in cs)
         console.print(
-            "[yellow]below the 0.1pp step the ABS rounds to[/yellow] — this component "
-            "cannot move a published headline figure on its own."
+            f"  {cs[0].label}: weight {cs[0].weight:.3f}% · largest effect {largest:.3f}pp"
+        )
+    overall = max((abs(c.effect_pp) for c in contributions), default=0.0)
+    if overall < 0.1:
+        console.print(
+            "[yellow]every component is below the 0.1pp step the ABS rounds to[/yellow] — "
+            "nothing here can move a published headline figure."
         )
 
 
