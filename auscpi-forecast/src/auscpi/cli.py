@@ -106,6 +106,50 @@ def build(
             console.print(f"  [dim]{r.note}[/dim]")
 
 
+@app.command("backfill-fuel")
+def backfill_fuel(
+    since: str = typer.Option(None, help='Earliest month to capture, "YYYY-MM". Omit for all.'),
+    until: str = typer.Option(None, help='Latest month to capture, "YYYY-MM". Omit for all.'),
+    limit: int = typer.Option(None, help="Stop after N files. Useful for a trial run."),
+    dry_run: bool = typer.Option(False, "--dry-run", help="List what would be captured."),
+) -> None:
+    """Capture NSW's published monthly FuelCheck price-history files.
+
+    The live API returns prices right now and nothing else, so this is the only route
+    to fuel history. The full archive runs to roughly 400 MB back to 2016 and
+    data/raw is tracked in git, so bound it with --since/--until rather than taking
+    the lot by reflex. Already-captured files are skipped, so it resumes.
+    """
+    from auscpi.collectors.fuelcheck import (
+        backfill,
+        discover_archive_files,
+        fetch_archive_index,
+    )
+
+    if dry_run:
+        files = [
+            f
+            for f in discover_archive_files(fetch_archive_index())
+            if (since is None or f.period >= since) and (until is None or f.period <= until)
+        ]
+        if limit:
+            files = files[:limit]
+        known = sum(f.size or 0 for f in files)
+        table = Table("period", "format", "MB", "name")
+        for f in sorted(files, key=lambda f: f.period):
+            table.add_row(f.period, f.fmt, f"{(f.size or 0) / 1024 / 1024:.1f}", f.name[:48])
+        console.print(table)
+        console.print(f"{len(files)} file(s), {known / 1024 / 1024:.1f} MB. Nothing downloaded.")
+        raise typer.Exit()
+
+    written = backfill(since=since, until=until, limit=limit)
+    if not written:
+        console.print("[yellow]nothing to do[/yellow] — every file in range is already captured.")
+        raise typer.Exit()
+    console.print(f"[green]captured[/green] {len(written)} file(s) into data/raw.")
+    console.print("[dim]Commit data/raw — it is the provenance layer.[/dim]")
+
+
 @app.command("backfill-bonds")
 def backfill_bonds(
     include_annual: bool = typer.Option(

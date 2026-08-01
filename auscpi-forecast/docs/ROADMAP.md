@@ -34,7 +34,14 @@ Only goal: data starts accumulating today.
 - [x] Confirm the ABS dataflow id, enable the ABS collector — `ABS,CPI,2.0.0`,
       monthly and quarterly national slices, on collect-abs.yml. The old
       `CPI_M` indicator is retired at 2025-09 and must not be used.
-- [ ] Backfill FuelCheck history from data.nsw.gov.au archives
+- [x] **Backfill FuelCheck history from data.nsw.gov.au archives** — `auscpi
+      backfill-fuel`, captured 2026-08-01 for 2023-01 to 2026-06: 42 monthly files,
+      ~186 MB. The full archive is 119 files back to 2016 and roughly 400 MB, which
+      is a lot to put in a git-tracked `data/raw`, so the range is bounded and the
+      backfill resumes if it is widened later. Fuel is now the component with the
+      most history, which matters because `auscpi leverage` ranks it third of 87
+      classes and it is the highest-leverage class that is genuinely anticipable.
+      Note the licence is CC BY-SA, not CC-BY as previously recorded here.
 
 **Done when:** `auscpi health` shows every source fetched within its cadence,
 three days running, untouched.

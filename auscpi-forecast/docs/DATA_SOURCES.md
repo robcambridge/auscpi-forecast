@@ -12,7 +12,7 @@ day not collected is a day permanently absent from your sample.
 | ABS quarterly CPI | Decades of quarterly history | ABS Data API | CC-BY |
 | ABS CPI by capital city | Rents by city, for components whose predictor is city-specific | ABS Data API, narrow slice | CC-BY |
 | RBA statistical tables | Cash rate, market rates, inflation expectations | CSV/XLSX | CC-BY |
-| NSW FuelCheck **archives** | Historical station-level prices | data.nsw.gov.au dataset files | CC-BY |
+| NSW FuelCheck **archives** | Historical station-level prices | data.nsw.gov.au dataset files | **CC BY-SA** — see below |
 | NSW Rental Bond Lodgements | Monthly **new-lease** rents by postcode: weekly rent, dwelling type, bedrooms | NSW Fair Trading .xlsx, monthly, back to Jan 2022 | CC-BY |
 | AER Default Market Offer | Regulated electricity price determinations | PDF/HTML, published in advance | CC-BY |
 | IPART determinations | NSW regulated prices (water, transport) | PDF/HTML | CC-BY |
@@ -122,6 +122,33 @@ jurisdiction if national coverage matters later.
 OAuth2 client credentials against `api.onegov.nsw.gov.au`; tokens are
 short-lived so mint one per run. The all-prices endpoint returns every
 prescribed fuel at 2,500+ NSW stations.
+
+**NSW FuelCheck archives** (verified 2026-08-01). The live API returns prices *right
+now* and nothing else, so it cannot say what fuel cost last March. History comes from
+a separate CKAN dataset:
+
+```
+https://data.nsw.gov.au/data/api/3/action/package_show?id=fuel-check
+```
+
+119 monthly price-history resources back to August 2016, roughly 400 MB in total,
+mixed `XLSX` and `CSV`. `auscpi backfill-fuel --since YYYY-MM --until YYYY-MM`
+captures them; `--dry-run` lists what would be taken without downloading. Captured
+2026-08-01: **2023-01 to 2026-06, 42 files, ~186 MB.**
+
+> **LICENCE: this dataset is CC BY-SA, not plain CC-BY.** CKAN reports
+> `license_id: cc-by-sa`, "Creative Commons Attribution Share-Alike". This file
+> previously recorded it as CC-BY. Share-Alike carries obligations for derived works
+> that plain attribution does not, and this repository publishes forecasts derived
+> from the data, so the distinction is worth understanding before redistributing
+> anything built on it. The NSW rental bond data is separately CC-BY and unaffected.
+
+The titles are inconsistent and **a parser must handle abbreviated months**:
+`FuelCheck Price History June 2026`, `FuelCheck Price History Feb 2024`,
+`Fuelcheck Price History Dec 2018.xlsx`, `Service Station & Price History Sep 2019`.
+Matching only full month names silently skipped 23 of 119 files — including ten
+consecutive months of 2024 — which is the failure mode that looks like a working
+backfill and shows up much later as a model trained on less data than it claims.
 
 **NSW rental bond lodgements.** No key, no auth, CC-BY. Index page:
 <https://www.nsw.gov.au/housing-and-construction/rental-forms-surveys-and-data/rental-bond-data>.

@@ -299,9 +299,27 @@ effect without inventing it. It is also the wrong driver: electricity's biggest 
 are +22.3% Nov 2024, +18.5% Jan 2026, −14.6% Aug 2024 — rebate timing, not July. The
 corpus to build is the rebate instalment schedules.
 
-In rough value order from here: fuel (Phase 3 nowcast then Phase 4 forward path); the
-electricity rebate schedule as the first real extraction corpus; explicit seasonality
-for the holiday travel classes; then quantiles by horizon.
+**Fuel history captured 2026-08-01.** `auscpi backfill-fuel --since 2023-01`: 42
+monthly price-history files, ~186 MB, from the data.nsw CKAN dataset `fuel-check`.
+The live API returns prices *right now* only, so the archive is the sole route to
+history. The full archive is 119 files back to 2016 (~400 MB); the range is bounded
+because `data/raw` is tracked in git, and the backfill resumes if widened.
+
+Two things found doing it, both in docs/DATA_SOURCES.md:
+
+- **The archive is CC BY-SA, not CC-BY**, which this repo had recorded. Share-Alike
+  carries obligations for derived works; worth understanding before redistributing
+  anything built on it. NSW rental bonds are separately CC-BY and unaffected.
+- **The published titles mix full and abbreviated month names** and vary the prefix
+  ("June 2026", "Feb 2024", "Service Station & Price History Sep 2019"). Matching
+  only full names skipped 23 of 119 files including ten consecutive months of 2024 —
+  a backfill that quietly captures two thirds of the archive.
+
+In rough value order from here: the fuel component itself (parse the archive into a
+volume-weighted NSW price series, then the NSW-to-national gap — Phase 3 nowcast
+before the Phase 4 forward path); the electricity rebate schedule as the first real
+extraction corpus; explicit seasonality for the holiday travel classes; then quantiles
+by horizon.
 
 **Log caught up 2026-08-01.** `log.csv` is now 78 rows: the original 39 at `539ae70`
 plus 39 at `b6625e1` carrying `seasonal_index_mom`. Two things to know when reading
