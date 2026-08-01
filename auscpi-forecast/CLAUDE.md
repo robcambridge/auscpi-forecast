@@ -153,12 +153,26 @@ fitted on the raw median would be fitting composition. Read the module docstring
 `parsers/nsw_rental_bonds.py` before changing any threshold in it; every exclusion
 is counted and surfaced in `BuildResult.note` on purpose.
 
-In rough value order from here: the rent roll-through itself (Phase 4 — both sides
-now exist, NSW bond index leads, ABS class `30014` at 6.613% is the target, and the
-NSW-to-national and short-sample problems are the two things to settle first); the
-administered-price calendar (Phase 5, the only thing that can resolve the
-year-specific 1 July swing, which is worth more than any driver refinement); then
-quantiles by horizon.
+**Rent roll-through built 2026-07-31, and it does NOT have demonstrated skill.**
+`auscpi rents` / `src/auscpi/rents.py`. The stock is a 12-month moving average of the
+new-lease flow, K=12 structural rather than tuned. Read the module docstring before
+touching it — the short version is that the model beats a flat carry by 21% overall
+with skill rising by horizon exactly as the mechanism predicts, and that entire
+result vanishes on the subsample where every candidate K is comparable. Those are
+different periods, not different models, and 19 origins cannot tell them apart.
+Nothing from it is logged. `auscpi rents --backtest` re-runs the verdict; it is meant
+to be revisited after each release.
+
+The parameter doing the work is β≈0.48: new-lease rents move about twice as much as
+measured ones. At least three things are inside it — NSW vs national, CRA netting,
+and partial pass-through within the stock — and separating them is what would turn β
+from a fudge factor into a forecast.
+
+In rough value order from here: split Sydney from the rest of NSW in the bond index
+(the tractable part of β, needs the ABS postcode correspondence); confirm the CRA
+treatment and effective dates against the ABS release notes; the administered-price
+calendar (Phase 5, the only thing that can resolve the year-specific 1 July swing,
+which is worth more than any driver refinement); then quantiles by horizon.
 
 **Not started and possibly blocked:** the grocery basket (~17% of the basket)
 needs Coles/Woolworths terms checked first, and on the SQM precedent may fail the

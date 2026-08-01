@@ -159,39 +159,44 @@ def build_abs_cpi_weights(*, as_at: datetime | None = None) -> BuildResult:
     )
 
 
-def build_nsw_rental_bonds(*, as_at: datetime | None = None) -> BuildResult:
-    """Assemble the bond lodgement history into records plus a mix-controlled index.
+def load_bond_records(*, as_at: datetime | None = None) -> tuple[pd.DataFrame, Any, str]:
+    """Cleaned bond lodgements from raw, without touching data/curated.
+
+    The bond counterpart of `load_panel`, and it exists for the same reason:
+    modelling code must be able to reconstruct a past information set without
+    depending on a curated file left over from another vintage, and without a read
+    quietly writing.
 
     Unlike the ABS sources, one snapshot here is one MONTH rather than one vintage
-    of everything, so the build reads every snapshot and stacks them. That makes
-    two things the ABS path never has to think about matter:
+    of everything, so this reads every snapshot and stacks them. Two consequences
+    the ABS path never has to think about:
 
       - Collecting the same month twice must not double-count it. The published
         file for a month can be reissued, and the monthly workflow will happily
-        capture it again. Rows are therefore keyed on the month found in the DATA,
+        capture it again. Months are therefore keyed on the date found in the DATA,
         and the newest snapshot wins — filename and note are navigation metadata
         and neither is reliable enough to key on.
-      - Parsing is per-file, so a single corrupt or re-shaped workbook would fail
-        the whole build. It is allowed to: a rent index silently missing March is
-        worse than one that refuses to build, and the exception names the file.
+      - Parsing is per-file, so a single corrupt or re-shaped workbook fails the
+        whole build. It is allowed to: a rent index silently missing March is worse
+        than one that refuses to build, and the exception names the file.
+
+    Returns the records, the tally of what was discarded, and the newest vintage.
     """
     from auscpi.parsers.nsw_rental_bonds import (
         Rejections,
         clean_records,
         file_period,
-        index_frame,
         parse_workbook,
     )
 
     source = "nsw_rental_bonds"
-    entries = _select_snapshots(source, as_at)
-
     # Newest snapshot first, so the first sighting of a month is the one to keep.
-    newest_first = sorted(entries, key=lambda m: m["fetched_at"], reverse=True)
+    newest_first = sorted(
+        _select_snapshots(source, as_at), key=lambda m: m["fetched_at"], reverse=True
+    )
     frames: list[pd.DataFrame] = []
     rejected = Rejections()
     seen: set[str] = set()
-    vintage = newest_first[0]["fetched_at"]
 
     for entry in newest_first:
         try:
@@ -209,6 +214,16 @@ def build_nsw_rental_bonds(*, as_at: datetime | None = None) -> BuildResult:
     panel = pd.concat(frames, ignore_index=True).sort_values(["period", "lodgement_date"])
     if panel.empty:
         raise ValueError(f"{source} snapshots parsed to zero usable rows")
+    return panel, rejected, newest_first[0]["fetched_at"]
+
+
+def build_nsw_rental_bonds(*, as_at: datetime | None = None) -> BuildResult:
+    """Write the bond lodgement history plus its mix-controlled index to curated."""
+    from auscpi.parsers.nsw_rental_bonds import index_frame
+
+    source = "nsw_rental_bonds"
+    panel, rejected, vintage = load_bond_records(as_at=as_at)
+    seen = set(panel["period"].unique())
 
     index = index_frame(panel)
 

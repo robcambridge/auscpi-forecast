@@ -132,6 +132,92 @@ def backfill_bonds(
 
 
 @app.command()
+def rents(
+    horizons: int = typer.Option(12, help="Longest horizon. The path runs h=0..N."),
+    roll_through: int = typer.Option(
+        None, help="Months for the stock to roll through. Structural; default 12."
+    ),
+    as_at: str = typer.Option(None, "--as-at", help="Use the vintage as at this instant."),
+    show_backtest: bool = typer.Option(
+        False, "--backtest", help="Score the roll-through against carrying rents flat, by horizon."
+    ),
+) -> None:
+    """Project ABS measured rents from new leases already signed.
+
+    Not logged to the public track record: this component does not have
+    demonstrated skill on the sample available. See auscpi/rents.py.
+    """
+    from auscpi.rents import ROLL_THROUGH_MONTHS, backtest, load_inputs, rent_path
+
+    cutoff = None
+    if as_at:
+        cutoff = datetime.fromisoformat(as_at)
+        if cutoff.tzinfo is None:
+            cutoff = cutoff.replace(tzinfo=UTC)
+
+    console.print("[dim]re-parsing bond snapshots from data/raw, this takes a minute…[/dim]")
+    measured, new_lease = load_inputs(as_at=cutoff)
+    # h=0 is the first month of measured rents the ABS has NOT published, matching
+    # the nowcast-as-h=0 convention in forecast.py.
+    from auscpi.rents import add_months
+
+    origin = add_months(str(measured.dropna().index[-1]), 1)
+    try:
+        points, calibration = rent_path(
+            measured,
+            new_lease,
+            origin=origin,
+            horizons=list(range(horizons + 1)),
+            roll_through_months=roll_through or ROLL_THROUGH_MONTHS,
+        )
+    except ValueError as exc:
+        console.print(f"[red]cannot project rents[/red] {exc}")
+        raise typer.Exit(code=1) from exc
+
+    table = Table("h", "month", "measured y/y", "benchmark", "window observed")
+    for p in points:
+        table.add_row(
+            str(p.horizon_months),
+            p.reference_month,
+            f"{p.point:+.2f}",
+            f"{p.benchmark_point:+.2f}",
+            f"{p.observed_share:.0%}",
+        )
+    console.print(table)
+    console.print(
+        f"roll-through {calibration.roll_through_months}m · "
+        f"beta {calibration.beta:.3f} alpha {calibration.alpha:+.3f} on "
+        f"{calibration.n} overlapping year-ended pairs · cutoff {calibration.information_cutoff}"
+    )
+    console.print(
+        "[yellow]not logged[/yellow] — skill is not established on this sample. "
+        "See the module docstring before quoting these numbers."
+    )
+
+    if show_backtest:
+        results = backtest(
+            measured, new_lease, roll_through_months=roll_through or ROLL_THROUGH_MONTHS
+        )
+        if not results:
+            console.print("[yellow]not enough history to score anything yet[/yellow]")
+            return
+        scores = Table("h", "MAE", "benchmark MAE", "skill", "n")
+        for r in results:
+            scores.add_row(
+                str(r.horizon_months),
+                f"{r.mae:.3f}",
+                f"{r.benchmark_mae:.3f}",
+                f"{r.skill:+.3f}",
+                str(r.n),
+            )
+        console.print(scores)
+        console.print(
+            "[dim]n counts forecasts, not independent observations: origins overlap and "
+            "year-ended windows overlap elevenfold.[/dim]"
+        )
+
+
+@app.command()
 def forecast(
     target: str = typer.Option(
         None, help="One target, or omitted for every target this vintage supports."

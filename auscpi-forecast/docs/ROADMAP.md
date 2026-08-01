@@ -92,19 +92,35 @@ much more of the month-to-month variance.
 
 This is the project. Everything above exists to make this possible.
 
-- [ ] **Rent roll-through. Both inputs now exist — this is the next real task.**
-      Estimate the distribution of lags from the NSW bond lodgement index
-      (new-lease rents, `data/curated/nsw_rental_bonds_index.csv`, 54 months) to
-      ABS measured rents (expenditure class `30014`, weight 6.613%). The ABS
-      prices the stock, not new leases, so today's new-lease rents constrain
-      measured rents 6–12 months out almost mechanically. This is the one
-      component where accuracy improves with horizon rather than decaying, and it
-      is the core of the edge. Not SQM asking rents — those are ruled out.
+- [x] **Rent roll-through — built, skill NOT established.** `auscpi rents`, in
+      `src/auscpi/rents.py`. The stock is modelled as a 12-month moving average of
+      the new-lease flow, so most of any horizon under a year is already-signed
+      leases; `observed_share` on each point reports how much. K=12 is structural
+      (lease length), not tuned — see the module docstring for why the correlation
+      peak at 15–17 was not followed.
 
-      Two things to settle before fitting anything: the bond index is NSW while
-      `30014` is national, and 54 monthly observations against a lag structure of
-      6–12 months is a short sample for a distributed lag. Expect to constrain the
-      lag shape rather than estimate it freely.
+      **The honest result, and it is not the one the roadmap assumed.** On every
+      point the sample can evaluate, the model beats carrying rents flat by 21%,
+      with skill rising by horizon exactly as the mechanism predicts (−1.10 at h=1,
+      +0.56 at h=12). On the 45 points that every candidate K can evaluate, all of
+      that disappears — K=12 scores +0.009 and every other K loses. Those are
+      different periods, not different models: the common sample sits in the recent
+      calm stretch where a flat carry is very hard to beat. With at most 19 origins
+      and elevenfold-overlapping windows this sample cannot settle it. Re-run
+      `auscpi rents --backtest` after each release; that verdict is meant to be
+      revisited, not trusted.
+
+      Nothing from this is logged to `forecasts/log.csv`.
+
+- [ ] **Split Sydney from the rest of NSW in the bond index.** The tractable part
+      of the β≈0.5 pass-through puzzle. Needs the ABS postcode correspondence read,
+      not postcode ranges guessed at. Postcode is already carried through to the
+      curated records.
+- [ ] **Confirm the Commonwealth Rent Assistance treatment.** The ABS measures rent
+      net of CRA, so the increases over this sample damp measured rent inflation
+      against gross market rents. β currently absorbs that as if it were a constant
+      wedge when it is a level shift on specific months. Read the ABS release notes
+      for the effective dates before this component is relied on.
 - [ ] **Fuel forward path** from refined product futures plus AUD forwards plus
       known excise indexation, rather than a statistical model of petrol prices.
 - [ ] Tradables: FX pass-through with an estimated lag, off import prices
