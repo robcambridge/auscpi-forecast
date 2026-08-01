@@ -202,10 +202,14 @@ Sydney-only bond index if it still looks worth it, which needs the ABS postcode
 correspondence read rather than guessed; aggregation of components to a headline path
 on published weights; then quantiles by horizon.
 
-**Also worth knowing: the public log is behind the code.** `log.csv` holds only
-`v0-naive` rows from 2026-07-30. The current model would put July 2026 m/m at +0.70
-rather than the logged +1.30, and has never been committed to the record. The next
-print is 2026-08-26.
+**Log caught up 2026-08-01.** `log.csv` is now 78 rows: the original 39 at `539ae70`
+plus 39 at `b6625e1` carrying `seasonal_index_mom`. Two things to know when reading
+it. The 2026-08-01 path has origin 2026-08, so the new m/m model has no forecast for
+reference month 2026-07 and will not be scored on the 2026-08-26 print — its first
+scoreable print is 2026-09-30, and the old `seasonal_naive` row (+1.30) is what that
+print scores. And because no CPI printed between the two runs, both share
+`information_cutoff` 2026-06, so the y/y rows are the same forecast re-stamped a
+horizon shorter rather than an updated one. See forecasts/README.md.
 
 **Not started and possibly blocked:** the grocery basket (~17% of the basket)
 needs Coles/Woolworths terms checked first, and on the SQM precedent may fail the

@@ -26,6 +26,25 @@ Columns worth understanding:
 and do that in a separate commit so the history shows the forecast and the
 outcome as two distinct events.
 
+### The same reference month appears many times, and that is the point
+
+Each run logs a full path, so a reference month is forecast again at a shorter
+horizon every time. Reference month 2026-08 is h=1 in the path made 2026-07-30 and
+h=0 in the one made 2026-08-01. Scoring buckets by (model, target, horizon), so
+these land in different buckets and nothing is double-counted.
+
+But read `information_cutoff` before treating them as two observations. Those two
+rows share a cutoff of 2026-06, because no CPI printed between the two runs — so
+they are the *same* forecast re-stamped at a shorter horizon, not an updated one.
+A path logged when the information set has not moved adds a row without adding
+information. This matters when counting: it inflates `n` in the scorecard while
+the effective sample stands still, on top of the overlapping-horizon problem
+described at the bottom of this file.
+
+The rows are kept rather than avoided, because the alternative — deciding after
+the fact which logged forecasts "counted" — is exactly the discretion this file
+exists to remove.
+
 Always log a benchmark alongside. A track record without a benchmark is
 unreadable — nobody knows whether 0.3pp of error is good or dreadful.
 

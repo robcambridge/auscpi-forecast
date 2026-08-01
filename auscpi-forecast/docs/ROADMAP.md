@@ -54,9 +54,11 @@ three days running, untouched.
 - [ ] RBA SMP forecasts entered as a benchmark series (manual entry is fine,
       it is four numbers a quarter)
 - [x] **Log the first public forecast path and push it** — done 2026-07-30, 39 rows
-      at `539ae70`. NOTE: those rows are `v0-naive` and the model has changed since
-      (the m/m target is now derived from the same projected index). The current
-      model has never been logged; the next print is 2026-08-26. The machinery is done
+      at `539ae70`, and a second path logged 2026-08-01 at `b6625e1` once the m/m
+      target was derived from the same projected index. 78 rows total. The
+      2026-08-01 path has origin 2026-08, so the new m/m model has NO forecast for
+      reference month 2026-07 and will not be scored on the 2026-08-26 print — its
+      first scoreable print is 2026-09-30. The machinery is done
       (`auscpi forecast --log`, then `auscpi fill-actual` after each print, then
       `auscpi score`). All three targets project the index so base effects are
       exact, and both headline targets read the *same* projection — year-ended as
