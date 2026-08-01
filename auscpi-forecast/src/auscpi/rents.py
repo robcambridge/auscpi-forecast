@@ -50,12 +50,33 @@ WHAT IS STRUCTURAL AND WHAT IS FITTED.
       evaluation points that settles nothing, but a better-identified parameter
       forecasting worse is exactly the pattern that should stop anyone declaring
       victory here.
-    - Commonwealth Rent Assistance. The ABS measures rent net of CRA, so the
-      increases legislated over this period damp measured rent inflation relative
-      to gross market rents. Worth confirming against the ABS release notes and
-      the effective dates before this model is relied on, because it is a level
-      shift on specific months rather than a constant wedge, and beta is currently
-      absorbing it as if it were constant.
+    - Commonwealth Rent Assistance, CONFIRMED against the ABS releases on
+      2026-08-01 and dated. The ABS measures rent net of CRA, and the maximum rate
+      rose 15% from 20 September 2023 and a further 10% from 20 September 2024,
+      both on top of routine biannual CPI indexation. Those damp measured rent
+      inflation against the gross market rents the bond index prices.
+
+      A y/y figure carries a one-off for twelve months, so reference months
+      2023-09 through 2025-08 are affected — which is most of the calibration
+      sample. The published wedge where the ABS quantifies it: December 2025 rents
+      rose 3.9% against 4.2% excluding CRA, January 2026 3.9% against 4.1%. By
+      June 2026 the ABS stops reporting it, the one-offs having left the annual
+      window. Peak-period magnitude is not published in any release: the June 2024
+      and June 2025 monthly indicators give no counterfactual at all.
+
+      THE CORRECTION IS NOT ESTIMABLE HERE, AND THAT WAS MEASURED RATHER THAN
+      ASSUMED. Dropping the affected months leaves 10 of 31 pairs, below
+      MIN_CALIBRATION_POINTS, and beta moves from 0.478 to 0.366 nationally and
+      from 0.667 to -0.098 for Sydney. A negative pass-through — new leases rising
+      and measured rents falling — is not a result, it is what ten overlapping
+      points produce. No CRA adjustment is applied for that reason.
+
+      What remains is a DIRECTIONAL WARNING that cannot currently be sized. beta
+      is fitted over a window where the target was artificially depressed, and it
+      is forecasting a period where that depression has ended, so the projection is
+      biased LOW. The ABS does not publish an ex-CRA series — the counterfactual
+      appears in release commentary only, so it cannot be collected, and
+      reconstructing it is document extraction, which is Phase 5.
     - Partial pass-through within the stock. Even a lease that resets often resets
       below market, because re-letting to a sitting tenant avoids a vacancy.
 

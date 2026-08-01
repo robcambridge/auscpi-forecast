@@ -190,10 +190,14 @@ class ABSQuarterlyCPICollector(_ABSCPICollector):
 #: is 56, and every entry has to earn its place by being a component whose
 #: predictor is city-specific.
 #:
-#: 30014 is Rents, the target of the roll-through model. 115522 is ALSO published
-#: as "Rents" — same name, different code — so both are captured and the build
-#: decides. Collecting one and silently getting the other is the kind of mistake
-#: that only shows up months later.
+#: 30014 is Rents, the target of the roll-through model. 115522 is ALSO named
+#: "Rents" and carries byte-identical values, which looks like duplicate
+#: publication and is not: CL_CPI_INDEX gives the chain 20003 Housing -> 115522
+#: -> 30014, so 115522 is the SUB-GROUP and 30014 its only child expenditure
+#: class. A one-child branch makes the two levels numerically the same. Both are
+#: captured because the level a code sits at is not recoverable from the code
+#: itself (see ABSCPIWeightsCollector on why that matters), and a future reweight
+#: could give 115522 a second child and silently separate them.
 REGIONAL_INDEX_CLASSES = ("30014", "115522")
 
 #: SDMX unions codes on a dimension with "+".

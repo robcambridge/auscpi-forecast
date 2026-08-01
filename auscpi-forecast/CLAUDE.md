@@ -183,13 +183,29 @@ Two ABS gotchas found while doing it: `30014` and `115522` are both published as
 `abs_cpi_monthly` one exactly across all 48 months, which is the cross-check that
 says the new collector is wired up right.
 
-In rough value order from here: confirm the CRA treatment and effective dates
-against the ABS release notes (cheaper than the remaining geography work and
-probably a larger share of β); a Sydney-only bond index if that still looks worth
-it, which needs the ABS postcode correspondence read rather than guessed; the
-administered-price calendar (Phase 5, the only thing that can resolve the
-year-specific 1 July swing, which is worth more than any driver refinement); then
-quantiles by horizon.
+**CRA checked 2026-08-01: real, dated, and NOT correctable on this sample.** CPI
+rents are net of Commonwealth Rent Assistance; maximum rates rose 15% from
+20 September 2023 and 10% from 20 September 2024, so reference months 2023-09 to
+2025-08 are affected — most of the calibration window. Dropping them leaves 10 of 31
+pairs and sends β to 0.366 nationally and −0.098 for Sydney, which is noise rather
+than a finding, so no adjustment is applied. The residual: β is fitted on a depressed
+window and forecasts a period where the depression has ended, so **the rent
+projection is biased low by an amount nobody can currently size**. There is no ex-CRA
+series in the API, only release commentary, so fixing this is document extraction.
+
+That is now the second independent argument for Phase 5 — the first was the
+year-specific 1 July swing. Phase 5 is looking less like a later refinement and more
+like the thing two separate dead ends both point at.
+
+In rough value order from here: the administered-price calendar (Phase 5); a
+Sydney-only bond index if it still looks worth it, which needs the ABS postcode
+correspondence read rather than guessed; aggregation of components to a headline path
+on published weights; then quantiles by horizon.
+
+**Also worth knowing: the public log is behind the code.** `log.csv` holds only
+`v0-naive` rows from 2026-07-30. The current model would put July 2026 m/m at +0.70
+rather than the logged +1.30, and has never been committed to the record. The next
+print is 2026-08-26.
 
 **Not started and possibly blocked:** the grocery basket (~17% of the basket)
 needs Coles/Woolworths terms checked first, and on the SQM precedent may fail the

@@ -179,13 +179,44 @@ expenditure classes — 56 series, ~39 KB. SDMX unions codes on a dimension with
 
 Two things worth knowing before using it:
 
-- **`30014` and `115522` are both published as "Rents" and are byte-identical.**
-  Same values in every region and period. The collector takes both so that
-  collecting one and silently getting the other cannot happen; use `30014`.
+- **`30014` and `115522` are both named "Rents" and are byte-identical**, which
+  looks like duplicate publication and is not. `CL_CPI_INDEX` gives the chain
+  `20003 Housing → 115522 → 30014`: 115522 is the **sub-group** and 30014 its only
+  child **expenditure class**. A one-child branch makes the two levels numerically
+  identical. Use `30014`; the collector takes both because a reweight could give
+  115522 a second child and silently separate them.
 - Monthly regional rents run **2022-07 to 2026-06**, the same span as the national
   series, so coming to this late cost no history. The regional slice's national
   series matches `abs_cpi_monthly` exactly across all 48 months — a useful
   cross-check that the slice is wired up right.
+
+### CPI rents are net of Commonwealth Rent Assistance (checked 2026-08-01)
+
+Relevant to anything that compares CPI rents against market rents, because bond
+lodgements price gross rent and the CPI does not.
+
+CRA maximum rates rose **15% from 20 September 2023** and a further **10% from
+20 September 2024**, both on top of routine biannual CPI indexation. A year-ended
+figure carries a one-off for twelve months, so reference months **2023-09 through
+2025-08** are affected.
+
+The ABS quantifies it only in release commentary, and only recently:
+
+| Reference month | Published rents y/y | Excluding CRA |
+|---|---|---|
+| December 2025 | 3.9% | 4.2% |
+| January 2026 | 3.9% | 4.1% |
+| June 2026 | 3.6% | not reported — one-offs have left the window |
+
+The June 2024 and June 2025 monthly indicators give no counterfactual, so the
+peak-period wedge is not available from published sources. **There is no ex-CRA
+series in the API** — `CL_CPI_INDEX` has 166 codes and none of them is one — so
+this cannot be collected, only read out of release text. That makes it document
+extraction, i.e. Phase 5.
+
+Useful side effect: the commentary figures match our collected series exactly
+(3.9% for January 2026, 3.6% for June 2026), which independently validates the
+parser against the ABS's own published numbers.
 
 **Do not use `CPI_M`.** It is the retired monthly *indicator*: its last
 observation is 2025-09, it has 39 index values rather than 166, and it is no
