@@ -385,11 +385,39 @@ rounds to. No refinement of fuel measurement can move a published figure. Fuel's
 is the size of its moves (0.199pp leverage, 1.098pp max), which the component already
 captures at 0.97.
 
+**Per-component seasonality was already done, confirmed 2026-08-02.** All 87 classes
+publish an ABS seasonally adjusted counterpart, so `component_baseline` restores the
+published seasonal shape per class. It matches history closely — domestic holiday
+travel projects −9.81% for February against a nine-year mean of −10.39%. Nothing was
+fitted, deliberately: nine observations per calendar month is a worse basis than the
+ABS's own adjustment. Check before building; that item would have been rebuilt worse.
+
+**Bottom-up aggregation adds nothing over top-down.** Weighting all 87 per-class
+seasonal projections into a headline scores MAE 0.373 against 0.373 for projecting All
+Groups directly (42 points, 12 origins), with horizon differences flipping sign. The
+aggregation machinery earns its place by letting one class be REPLACED with a better
+model, not by the bottom-up structure.
+
+## What the last several steps add up to
+
+Worth reading before planning more component work. Measured, not asserted:
+
+- **Rents** — mechanism sound, skill not established, moves the headline ≤0.072pp.
+- **Fuel** — near-perfect measurement (β 1.008, corr 0.973), but its residual is
+  ~0.047pp of headline error, already under the ABS rounding step. Further refinement
+  cannot change a published figure; volume weighting was tested and struck off.
+- **Administered prices** — the one place a single event moved the headline by a
+  publishable amount (0.18pp), and it was public two months ahead.
+- **Aggregation** — no structural gain; value comes only from beating a class baseline.
+
+The pattern: **component quality is not the binding constraint — baseline disagreement
+is.** A class is worth modelling only where the naive projection is badly wrong and
+something knowable says so. That is administered prices, and almost nothing else.
+
 In rough value order from here: the electricity rebate schedule as the first real
-extraction corpus (0.113pp leverage, and the biggest moves are rebate timing rather
-than the July DMO); explicit seasonality for the holiday travel classes (0.54pp
-combined, the largest source of headline movement and still absent from the roadmap);
-then quantiles by horizon.
+extraction corpus (0.113pp leverage, max move 0.408pp, and the big moves are rebate
+timing not the July DMO); then quantiles by horizon, which is the roadmap's own "this
+is the product" and is untouched.
 
 **Log caught up 2026-08-01.** `log.csv` is now 78 rows: the original 39 at `539ae70`
 plus 39 at `b6625e1` carrying `seasonal_index_mom`. Two things to know when reading

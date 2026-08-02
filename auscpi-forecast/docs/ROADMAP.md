@@ -248,8 +248,23 @@ This is the project. Everything above exists to make this possible.
       known excise indexation, rather than a statistical model of petrol prices.
 - [ ] Tradables: FX pass-through with an estimated lag, off import prices
 - [ ] Services: wages (WPI) and unit labour costs
-- [ ] Seasonality estimated explicitly per component — at h≥1 you cannot observe
-      it, so it has to be modelled
+- [x] **Seasonality estimated explicitly per component** — already satisfied, and
+      confirmed 2026-08-02 rather than assumed. All 87 expenditure classes publish an
+      ABS seasonally adjusted counterpart, so `component_baseline` restores the
+      published seasonal shape per class instead of falling back to a flat
+      projection. It reproduces history closely: domestic holiday travel projects
+      −9.81% for February against a nine-year mean of −10.39%, international travel
+      +20.67% for December against +20.61%.
+
+      Nothing was fitted, deliberately. Nine observations per calendar month is a
+      worse basis for a seasonal factor than the ABS's own adjustment, so the right
+      move was to check whether the machinery already used it — it did.
+
+      The two holiday travel classes are worth naming here because they were absent
+      from this roadmap despite being the largest source of headline movement
+      (0.343pp and 0.201pp leverage, 0.54pp combined). Their seasonality is close to
+      deterministic: domestic February averages −10.39% with a standard deviation of
+      2.10 across nine years.
 - [x] **Aggregate to a headline path on published weights** — `auscpi components`,
       in `src/auscpi/aggregate.py`. A component swap nets its view against what the
       top-down rule already implied for that class and weights the difference, so a
@@ -268,6 +283,16 @@ This is the project. Everything above exists to make this possible.
       components that are merely well modelled. Not wired into `auscpi forecast` or
       the log: a swap below the rounding step would change the logged model without
       changing any published number.
+
+      **Bottom-up aggregation of the baseline itself adds nothing** (measured
+      2026-08-02). Building the headline as a weighted sum of all 87 per-class
+      seasonal projections scores an MAE of 0.373 against 0.373 for projecting All
+      Groups directly, over 42 points from 12 origins, with the horizon-level
+      differences flipping sign. The ABS's class and All Groups adjustments are
+      internally consistent and the projection is near-linear, so aggregating before
+      or after projecting gives the same answer. The aggregation machinery earns its
+      place by letting one class be REPLACED with a better model, not by the
+      bottom-up structure.
 
 ## Phase 5 — the administered price calendar (weeks 9–11)
 

@@ -115,11 +115,19 @@ class Contribution:
 def component_history(panel: pd.DataFrame, index_id: str) -> History:
     """A History for any expenditure class, not just the three logged targets.
 
-    `forecast.build_history` covers the targets and knows their seasonally adjusted
-    counterparts by name. Components are chosen at runtime, so the adjusted series is
-    looked up optimistically and left as None when the class does not have one — in
-    which case the seasonal projection falls back to the flat one rather than
-    inventing a factor.
+    `forecast.build_history` covers the three logged targets and knows their
+    seasonally adjusted counterparts by name. Components are chosen at runtime, so the
+    adjusted series is looked up optimistically; the fallback to None exists for
+    robustness rather than because it fires. Checked 2026-08-02: **all 87 expenditure
+    classes publish an adjusted counterpart**, so every component baseline gets the
+    ABS's own seasonal shape restored rather than the flat fallback.
+
+    That is what satisfies the roadmap's "seasonality estimated explicitly per
+    component", and it does so better than fitting would. Domestic holiday travel
+    projects -9.81% for February against a nine-year historical mean of -10.39%, and
+    international travel +20.67% for December against +20.61% — using the ABS's
+    adjustment, which rests on far more than the nine observations per calendar month
+    a fitted factor would have.
     """
     try:
         sa_level = series_for(
