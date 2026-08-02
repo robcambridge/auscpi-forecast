@@ -414,10 +414,30 @@ The pattern: **component quality is not the binding constraint — baseline disa
 is.** A class is worth modelling only where the naive projection is badly wrong and
 something knowable says so. That is administered prices, and almost nothing else.
 
-In rough value order from here: the electricity rebate schedule as the first real
-extraction corpus (0.113pp leverage, max move 0.408pp, and the big moves are rebate
-timing not the July DMO); then quantiles by horizon, which is the roadmap's own "this
-is the product" and is untouched.
+**Phase 6 started 2026-08-02: error bands by horizon.** `auscpi uncertainty` /
+`src/auscpi/uncertainty.py`. Errors from re-forecasting at every evaluable origin,
+summarised per horizon, never pooled.
+
+Two results:
+
+- **The sample only supports bands to h=6.** Usable origins run to fourteen and each
+  horizon costs one: 14 at h=0, 8 at h=6, **2 at h=12**. Quantiles are withheld below
+  `MIN_ERRORS_FOR_QUANTILES` rather than printed as if two points were a distribution.
+- **The year-ended models read LOW, increasingly with horizon.** `headline_yoy` bias
+  −0.00 at h=0, −0.65 at h=6, −1.63 at h=12; `trimmed_mean_yoy` −0.01 / −0.17 / −0.48.
+  `headline_mom` is unbiased throughout. This is the flat-trend driver converging on
+  annualised recent trend, finally measured. **Not corrected** — fourteen overlapping
+  origins over one inflation episode cannot separate a structural bias from a sample
+  that happened to rise, and fitting it would flatter exactly the data that produced
+  it.
+
+`p10/p25/p75/p90` on `ForecastRecord` are still empty. The machinery now exists; what
+is missing is a presentation decision, since bands stop at h=6.
+
+In rough value order from here: decide whether to log bands to h=6; the electricity
+rebate schedule as the first real extraction corpus (0.113pp leverage, max move
+0.408pp, and the big moves are rebate timing not the July DMO); Phase 7 delivery,
+which is untouched and is what makes any of this readable by anyone else.
 
 **Log caught up 2026-08-01.** `log.csv` is now 78 rows: the original 39 at `539ae70`
 plus 39 at `b6625e1` carrying `seasonal_index_mom`. Two things to know when reading

@@ -378,8 +378,32 @@ model and no price scraper can see it.
 
 ## Phase 6 — density and attribution (weeks 11–13)
 
-- [ ] Quantile regression on component errors, **estimated separately by
-      horizon** — the error distribution at h=1 and h=6 are different objects
+- [x] **Error distribution estimated separately by horizon** — `auscpi uncertainty`,
+      in `src/auscpi/uncertainty.py`. Signed errors from re-forecasting at every
+      evaluable origin, summarised per horizon and never pooled. `bands_for` maps
+      error quantiles onto an outcome band.
+
+      **The sample supports this only to h=6.** A year-ended target needs thirteen
+      levels before a single forecast exists, so usable origins run to fourteen and
+      every extra horizon costs one: 14 at h=0, 8 at h=6, **2 at h=12**. Quantiles
+      are withheld below `MIN_ERRORS_FOR_QUANTILES` rather than printed as if two
+      points were a distribution. This loosens on its own as the track record grows.
+
+      **The measurement that matters more than the band: the year-ended models are
+      biased LOW, increasingly with horizon.** `headline_yoy` −0.00 at h=0, −0.65 at
+      h=6, −1.63 at h=12; `trimmed_mean_yoy` −0.01, −0.17, −0.48. `headline_mom` is
+      unbiased throughout. That is the flat-trend driver converging on annualised
+      recent trend, now measured rather than described in prose.
+
+      Not corrected, deliberately. Fourteen overlapping origins over one inflation
+      episode cannot separate a structural bias from a sample that happened to rise,
+      and subtracting a bias fitted on that data would look like an improvement on
+      exactly the data that produced it.
+
+- [ ] Populate `p10/p25/p75/p90` on logged forecasts. The fields have existed since
+      the first commit and are still empty. The machinery is done; what is missing is
+      a decision, because bands can only be emitted to h=6 and a path with bands on
+      half its horizons needs a presentation choice.
 - [ ] Calibration monitoring per horizon. This is the product. An uncalibrated
       forecast is worse than none, because it invites confident wrong sizing.
 - [ ] Attribution: what is the path, how did it move since the last update, and

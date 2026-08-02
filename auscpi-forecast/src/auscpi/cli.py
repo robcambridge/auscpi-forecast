@@ -278,6 +278,64 @@ def rents(
 
 
 @app.command()
+def uncertainty(
+    target: str = typer.Option(None, help="One target, or omitted for all three."),
+    as_at: str = typer.Option(None, "--as-at", help="Use the vintage as at this instant."),
+) -> None:
+    """How wrong the path usually is at each horizon, and which way.
+
+    A point forecast with no band invites confident wrong sizing. Quantiles are
+    refused where the sample cannot support them rather than printed as if it could.
+    """
+    from auscpi.build import load_panel
+    from auscpi.forecast import DEFAULT_PAIRS
+    from auscpi.uncertainty import MIN_ERRORS_FOR_QUANTILES, error_sample, horizon_errors
+
+    cutoff = None
+    if as_at:
+        cutoff = datetime.fromisoformat(as_at)
+        if cutoff.tzinfo is None:
+            cutoff = cutoff.replace(tzinfo=UTC)
+
+    if target and target not in DEFAULT_PAIRS:
+        raise typer.BadParameter(f"unknown target {target!r}; have {sorted(DEFAULT_PAIRS)}")
+
+    try:
+        panel = load_panel("abs_cpi_monthly", as_at=cutoff)
+    except FileNotFoundError as exc:
+        console.print(f"[red]no data[/red] {exc}")
+        raise typer.Exit(code=1) from exc
+
+    for name in [target] if target else list(DEFAULT_PAIRS):
+        summary = horizon_errors(error_sample(panel, name))
+        if not summary:
+            console.print(f"[yellow]{name}: no evaluable origins yet[/yellow]")
+            continue
+        table = Table("h", "n", "bias", "mean |err|", "p10", "p90", title=name)
+        for row in summary:
+            band = (
+                (f"{row.quantiles[0.10]:+.2f}", f"{row.quantiles[0.90]:+.2f}")
+                if row.estimable
+                else ("-", "-")
+            )
+            table.add_row(
+                str(row.horizon_months),
+                str(row.n),
+                f"{row.bias:+.2f}",
+                f"{row.mean_absolute:.2f}",
+                band[0],
+                band[1],
+            )
+        console.print(table)
+
+    console.print(
+        f"[dim]Quantiles are withheld below {MIN_ERRORS_FOR_QUANTILES} errors at a "
+        "horizon. Bias is mean signed error, point minus actual: negative means the "
+        "model reads low. Not corrected — see auscpi/uncertainty.py.[/dim]"
+    )
+
+
+@app.command()
 def leverage(
     top: int = typer.Option(15, help="How many classes to show."),
     as_at: str = typer.Option(None, "--as-at", help="Use the vintage as at this instant."),

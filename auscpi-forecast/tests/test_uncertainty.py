@@ -1,0 +1,127 @@
+from __future__ import annotations
+
+import pandas as pd
+import pytest
+from sdmx_fixtures import all_targets_doc
+
+from auscpi.parsers.abs_cpi import parse_sdmx_json
+from auscpi.uncertainty import (
+    MIN_ERRORS_FOR_QUANTILES,
+    HorizonErrors,
+    bands_for,
+    error_sample,
+    horizon_errors,
+)
+
+PERIODS = [f"{y}-{m:02d}" for y in (2023, 2024, 2025) for m in range(1, 13)] + [
+    f"2026-{m:02d}" for m in range(1, 7)
+]
+
+
+def errors(horizon: int, values: list[float]) -> pd.DataFrame:
+    return pd.DataFrame({"horizon_months": horizon, "error": values})
+
+
+def test_quantiles_are_withheld_when_the_sample_is_too_thin():
+    """At h=12 the real sample is two origins; an order statistic over two numbers
+    is arithmetic, not a distribution."""
+    thin = errors(12, [0.1] * (MIN_ERRORS_FOR_QUANTILES - 1))
+    [row] = horizon_errors(thin)
+    assert row.n == MIN_ERRORS_FOR_QUANTILES - 1
+    assert row.quantiles == {}
+    assert row.estimable is False
+
+
+def test_quantiles_appear_once_the_sample_is_large_enough():
+    enough = errors(0, [float(i) for i in range(MIN_ERRORS_FOR_QUANTILES)])
+    [row] = horizon_errors(enough)
+    assert row.estimable is True
+    assert set(row.quantiles) == {0.10, 0.25, 0.75, 0.90}
+    assert row.quantiles[0.10] < row.quantiles[0.90]
+
+
+def test_horizons_are_summarised_separately_never_pooled():
+    """The h=0 and h=12 errors of a year-ended projection are different objects."""
+    frame = pd.concat([errors(0, [0.0] * 10), errors(12, [5.0] * 10)], ignore_index=True)
+    summary = {r.horizon_months: r for r in horizon_errors(frame)}
+    assert summary[0].bias == pytest.approx(0.0)
+    assert summary[12].bias == pytest.approx(5.0)
+
+
+def test_bias_is_signed_so_reading_low_is_visible():
+    """Error is point minus actual, so a model that reads low has negative bias."""
+    [row] = horizon_errors(errors(6, [-1.0, -0.5, -0.75, -0.25]))
+    assert row.bias < 0
+    assert row.mean_absolute > 0
+
+
+def test_a_band_maps_the_error_quantiles_onto_the_outcome_the_right_way_round():
+    """An error of point minus actual inverts: the 90th error percentile is the LOW
+    end of the outcome band. Getting this backwards would publish a band that leans
+    the wrong way, and it would look plausible."""
+    row = HorizonErrors(
+        horizon_months=0,
+        n=20,
+        bias=0.0,
+        mean_absolute=1.0,
+        quantiles={0.10: -2.0, 0.25: -1.0, 0.75: 1.0, 0.90: 2.0},
+    )
+    band = bands_for(3.0, row)
+    assert band["p10"] == pytest.approx(1.0)  # 3.0 - 2.0
+    assert band["p90"] == pytest.approx(5.0)  # 3.0 + 2.0
+    assert band["p10"] < band["p25"] < band["p75"] < band["p90"]
+
+
+def test_a_biased_model_gets_an_off_centre_band():
+    """The band inherits the bias rather than being centred on the point.
+
+    If the model reads low, an honest band sits above the point. Centring it would
+    misreport where the outcome is likely to fall.
+    """
+    row = HorizonErrors(
+        horizon_months=12,
+        n=20,
+        bias=-1.5,
+        mean_absolute=1.5,
+        quantiles={0.10: -2.5, 0.25: -2.0, 0.75: -1.0, 0.90: -0.5},
+    )
+    band = bands_for(3.0, row)
+    assert band["p10"] > 3.0, "a model that reads low should have its band above the point"
+    assert band["p90"] == pytest.approx(5.5)
+
+
+def test_no_band_when_the_horizon_is_not_estimable():
+    row = HorizonErrors(horizon_months=12, n=2, bias=0.0, mean_absolute=0.0)
+    assert bands_for(3.0, row) == {"p10": None, "p25": None, "p75": None, "p90": None}
+
+
+def test_an_empty_sample_summarises_to_nothing_rather_than_raising():
+    assert horizon_errors(pd.DataFrame()) == []
+
+
+# --- the truncation backtest ---------------------------------------------
+
+
+def test_error_sample_never_scores_a_forecast_on_data_it_saw():
+    """Every origin sees only its own cutoff and earlier. The honesty of the whole
+    module rests on this, so a perfect-foresight model must still show errors."""
+    panel = parse_sdmx_json(all_targets_doc(PERIODS, mom=lambda i: round(0.1 * (i % 12), 3)))
+    sample = error_sample(panel, "headline_yoy")
+
+    assert not sample.empty
+    # Horizons thin out as they run past the end of the sample, which is the shape
+    # that makes long-horizon quantiles unsupportable.
+    counts = sample.groupby("horizon_months").size()
+    assert counts.loc[0] > counts.loc[max(counts.index)]
+
+
+def test_error_sample_respects_a_narrowed_horizon_span():
+    panel = parse_sdmx_json(all_targets_doc(PERIODS))
+    sample = error_sample(panel, "headline_yoy", horizons=[0, 1])
+    assert sorted(sample["horizon_months"].unique()) == [0, 1]
+
+
+def test_error_sample_covers_every_logged_target():
+    panel = parse_sdmx_json(all_targets_doc(PERIODS, mom=lambda i: round(0.1 * (i % 12), 3)))
+    for target in ("headline_mom", "headline_yoy", "trimmed_mean_yoy"):
+        assert not error_sample(panel, target).empty, target
