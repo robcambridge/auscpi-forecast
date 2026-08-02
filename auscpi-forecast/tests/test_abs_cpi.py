@@ -85,8 +85,9 @@ def test_the_regional_collector_stays_narrow():
     assert ABSRegionalCPICollector.cadence == "monthly"
     # MEASURE.INDEX.TSEST.REGION.FREQ — every measure, listed classes, every
     # adjustment, EVERY REGION, monthly.
-    assert ABSRegionalCPICollector.key == ".30014+115522...M"
+    assert ABSRegionalCPICollector.key == ".30014+115522+40081...M"
     assert "30014" in REGIONAL_INDEX_CLASSES, "rents is the reason this collector exists"
+    assert "40081" in REGIONAL_INDEX_CLASSES, "automotive fuel, for the FuelCheck component"
     assert "" not in REGIONAL_INDEX_CLASSES, "an empty code would wildcard the INDEX slot"
 
 

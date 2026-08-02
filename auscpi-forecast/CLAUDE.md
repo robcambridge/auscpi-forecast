@@ -351,10 +351,31 @@ certainly volume weighting: busy metro sites re-price most, so the crude sample
 approximates what the ABS weights by. The fix is to weight by volume, not to pick
 whichever variant scores highest on 42 points.
 
-In rough value order from here: volume weighting and the NSW-to-national gap for fuel
-(it has the most headroom and the highest leverage); the electricity rebate schedule
-as the first real extraction corpus; explicit seasonality for the holiday travel
-classes; then quantiles by horizon.
+**NSW-to-national measured 2026-08-01: there is no gap to close.** `src/auscpi/fuel.py`
+regresses ABS automotive fuel (40081) growth on the FuelCheck NSW mean over 41 months
+and gets **beta 1.008, alpha −0.061, correlation 0.973, residual sd 1.55pp** against a
+target whose own sd is 5.96pp. A slope of one with no intercept is an identity with
+noise on it, not a fitted mapping — contrast rents at beta 0.478.
+
+**And national beats Sydney, which was not the expected answer.** Sydney corr 0.938
+(resid 2.63pp) against Australia 0.973 (1.55pp); Perth 0.952, Melbourne 0.899,
+Brisbane 0.888. Sydney's discount cycle has its own timing and amplitude, while the
+FuelCheck mean spans the whole state and so already averages metro against regional —
+closer to an eight-city average than to Sydney. Convenient, since national is what we
+forecast, but it is measured, not chosen. Re-check as the sample grows. The rents
+result was the opposite, so do not generalise either way.
+
+The component is wired into `auscpi components`. It deliberately has **no forward
+path**: past the last FuelCheck month the index is carried flat, a random walk in
+levels, because layering a weak price forecast on a strong price measurement would
+make the result unattributable. `FuelPoint.measured` says which regime a horizon is
+in. Futures-based forward paths are Phase 4.
+
+In rough value order from here: volume weighting for fuel (the one measured weakness —
+better station coverage correlates slightly worse, which is the signature of the crude
+sample approximating the ABS's volume weighting); the electricity rebate schedule as
+the first real extraction corpus; explicit seasonality for the holiday travel classes;
+then quantiles by horizon.
 
 **Log caught up 2026-08-01.** `log.csv` is now 78 rows: the original 39 at `539ae70`
 plus 39 at `b6625e1` carrying `seasonal_index_mom`. Two things to know when reading

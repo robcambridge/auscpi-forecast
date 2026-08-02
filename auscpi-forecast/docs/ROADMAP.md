@@ -143,10 +143,19 @@ much more of the month-to-month variance.
         month-first, silently mis-dating every day ≤12 and failing on the rest: 70%
         rejected and the surviving 30% wrong. ISO is now tried strictly first.
 
-      Still to do: **volume weighting**, and the NSW-to-national gap. Not cosmetic —
-      improving station coverage makes the correlation slightly *worse* (0.984 → 0.973),
-      which is the signature of the crude sample accidentally approximating volume
-      weighting, since busy metro sites re-price most.
+      **The NSW-to-national gap turned out not to exist.** `src/auscpi/fuel.py` fits
+      ABS class growth on FuelCheck growth over 41 months: beta 1.008, alpha −0.061,
+      residual sd 1.55pp against a target sd of 5.96pp. A slope of one with no
+      intercept is an identity with noise, not a mapping to be adjusted. And national
+      beats Sydney (0.973 vs 0.938) — the reverse of the rents result — because
+      Sydney's discount cycle has its own timing while the FuelCheck mean spans the
+      whole state and already averages metro against regional. Wired into
+      `auscpi components`.
+
+      Still to do: **volume weighting**, the one measured weakness. Improving station
+      coverage makes the correlation slightly *worse* (0.984 → 0.973), the signature
+      of the crude sample accidentally approximating the volume weighting the ABS
+      uses, since busy metro sites re-price most.
 - [ ] Food and non-alcoholic beverages from the scraped basket (~17%)
 - [x] **Rents, current-month measurement** — `auscpi build` writes
       `data/curated/nsw_rental_bonds.parquet` (1,341,330 cleaned lodgements) and

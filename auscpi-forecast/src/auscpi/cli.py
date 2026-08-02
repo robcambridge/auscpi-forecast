@@ -381,6 +381,35 @@ def components(
             override={p.reference_month: p.point for p in points},
         )
     ]
+
+    # Fuel: the strongest component in the repo, and the only one that measures its
+    # class rather than modelling it. Skipped rather than fatal when the archive has
+    # not been captured, so `auscpi components` still works on a fresh clone.
+    try:
+        from auscpi.fuel import FUEL_INDEX_ID
+        from auscpi.fuel import component_path as fuel_path
+        from auscpi.fuel import load_inputs as fuel_inputs
+
+        fuel_measured, fuel_prices = fuel_inputs(as_at=cutoff)
+        fuel_points, fuel_cal = fuel_path(
+            fuel_measured, fuel_prices, origin=origin, horizons=span
+        )
+        swaps.append(
+            ComponentSwap(
+                index_id=FUEL_INDEX_ID,
+                label="Automotive fuel",
+                baseline=component_baseline(panel, FUEL_INDEX_ID, list(headline)),
+                override={p.reference_month: p.point for p in fuel_points},
+            )
+        )
+        console.print(
+            f"[dim]fuel calibration: beta {fuel_cal.beta:.3f} alpha {fuel_cal.alpha:+.3f} "
+            f"corr {fuel_cal.correlation:.3f} on {fuel_cal.n} months; "
+            f"{sum(1 for p in fuel_points if p.measured)} of {len(fuel_points)} horizons "
+            f"measured rather than carried[/dim]"
+        )
+    except (FileNotFoundError, ValueError) as exc:
+        console.print(f"[yellow]fuel component unavailable[/yellow] {exc}")
     # The administered calendar, with the leakage guard on the forecast's own cutoff
     # rather than today: an event announced later must not reach a backtest.
     calendar_cutoff = (cutoff.date() if cutoff else datetime.now(UTC).date())

@@ -198,7 +198,10 @@ class ABSQuarterlyCPICollector(_ABSCPICollector):
 #: captured because the level a code sits at is not recoverable from the code
 #: itself (see ABSCPIWeightsCollector on why that matters), and a future reweight
 #: could give 115522 a second child and silently separate them.
-REGIONAL_INDEX_CLASSES = ("30014", "115522")
+#: 40081 is Automotive fuel, the target of the FuelCheck component. Added for the
+#: same reason as rents: the predictor is NSW and the CPI target is national, and
+#: Sydney makes that mismatch measurable instead of assumed.
+REGIONAL_INDEX_CLASSES = ("30014", "115522", "40081")
 
 #: SDMX unions codes on a dimension with "+".
 KEY_REGIONAL_MONTHLY = f".{'+'.join(REGIONAL_INDEX_CLASSES)}...M"

@@ -251,10 +251,15 @@ def build_nsw_rental_bonds(*, as_at: datetime | None = None) -> BuildResult:
 CARRY_FORWARD_MONTHS = 3
 
 
-def build_fuelcheck(
+def load_fuel_series(
     *, as_at: datetime | None = None, fuel: str | None = None
-) -> BuildResult:
-    """Assemble the FuelCheck archive into daily and monthly price series.
+) -> tuple[pd.DataFrame, pd.DataFrame, Any, str]:
+    """Daily and monthly FuelCheck price series from raw, without writing anything.
+
+    The fuel counterpart of `load_panel` and `load_bond_records`, and it exists for
+    the same reason: modelling code must reconstruct a past information set without
+    depending on a curated file from another vintage, and a read must not quietly
+    write.
 
     MONTHS ARE CHAINED, NOT INDEPENDENT, and that is the one thing to understand
     before changing this. A price-history file records price CHANGES, so on its first
@@ -345,7 +350,16 @@ def build_fuelcheck(
     daily = pd.concat(frames, ignore_index=True).sort_values("date")
     if daily.empty:
         raise ValueError(f"{source} archive parsed to zero usable rows for {fuel!r}")
-    monthly = monthly_prices(daily)
+    return daily, monthly_prices(daily), rejected, max(e["fetched_at"] for e in ordered)
+
+
+def build_fuelcheck(*, as_at: datetime | None = None, fuel: str | None = None) -> BuildResult:
+    """Write the FuelCheck daily and monthly price series to curated."""
+    from auscpi.parsers.fuelcheck import HEADLINE_FUEL
+
+    source = "fuelcheck"
+    fuel = fuel or HEADLINE_FUEL
+    daily, monthly, rejected, vintage = load_fuel_series(as_at=as_at, fuel=fuel)
 
     outputs = [_write(daily, settings.curated_dir / f"{source}_daily.csv")]
     outputs.append(_write(monthly, settings.curated_dir / f"{source}_monthly.csv"))
@@ -357,7 +371,7 @@ def build_fuelcheck(
         periods=monthly["period"].nunique(),
         latest_period=str(monthly["period"].max()),
         outputs=outputs,
-        vintage=max(e["fetched_at"] for e in ordered),
+        vintage=vintage,
         note=(
             f"fuel={fuel}; dropped {rejected.total:,} rows: {rejected.as_dict()}; "
             f"{thin} day(s) below half peak station coverage"
