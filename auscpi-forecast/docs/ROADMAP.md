@@ -152,10 +152,20 @@ much more of the month-to-month variance.
       whole state and already averages metro against regional. Wired into
       `auscpi components`.
 
-      Still to do: **volume weighting**, the one measured weakness. Improving station
-      coverage makes the correlation slightly *worse* (0.984 → 0.973), the signature
-      of the crude sample accidentally approximating the volume weighting the ABS
-      uses, since busy metro sites re-price most.
+- [x] **Volume weighting for fuel — tested 2026-08-02, and struck off.** The
+      hypothesis was that re-pricing frequency proxies throughput, since improving
+      station coverage made the correlation slightly worse. It does not survive a
+      split-sample check: frequency weighting was best on the first 20 months
+      (1.272pp residual) and worst on the last 21 (1.523pp), while equal weighting
+      went from worst (1.640pp) to best (1.149pp). The ranking inverts, so choosing
+      the best of five schemes on 41 points was selection rather than measurement.
+      No change shipped.
+
+      It was also worth less than it looked. A ~1.4pp residual on a class weighing
+      3.347% is ~0.047pp of headline error, already under the 0.1pp step the ABS
+      rounds to — **better fuel measurement cannot move a published figure.** A real
+      volume proxy would need an external source and is hard to justify on that
+      arithmetic.
 - [ ] Food and non-alcoholic beverages from the scraped basket (~17%)
 - [x] **Rents, current-month measurement** — `auscpi build` writes
       `data/curated/nsw_rental_bonds.parquet` (1,341,330 cleaned lodgements) and

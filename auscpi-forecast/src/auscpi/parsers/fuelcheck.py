@@ -46,15 +46,28 @@ WHAT IS STILL WEAK:
 
   - NSW only, against a national CPI target. The same limitation the rent component
     has, and it needs the same NSW-to-national step.
-  - Unweighted across stations, and there is evidence this matters. A price index
-    should weight by volume sold; a quiet rural station currently counts as much as a
-    busy metropolitan one. The tell is that IMPROVING station coverage makes the
-    series correlate slightly WORSE with the ABS class (0.9840 with no carry-in and
-    218 thin days, 0.9727 with a bounded carry and 25). Stations that re-price
-    constantly are the busy competitive sites where most fuel is sold, so a crude
-    event-weighted sample accidentally approximates volume weighting. Volume data is
-    not published, so a proxy would have to be built; postcode is carried through to
-    the events so a population weighting could be tried.
+  - Unweighted across stations. A price index should weight by volume sold and this
+    does not; a quiet rural station counts as much as a busy metropolitan one. The
+    apparent tell is that IMPROVING station coverage makes the series correlate
+    slightly WORSE with the ABS class (0.9840 with no carry-in and 218 thin days,
+    0.9727 with a bounded carry and 25), which suggests the crude sample accidentally
+    approximates volume weighting because busy sites re-price most.
+
+    THAT HYPOTHESIS WAS TESTED AND DOES NOT HOLD, so do not re-run it. Weighting
+    stations by re-pricing frequency, its square root, or restricting to the most
+    active half or quartile, all scored within noise of equal weighting on the full
+    sample — and a split-sample check inverted the ranking outright: frequency
+    weighting was best on the first 20 months (1.272pp residual) and worst on the
+    last 21 (1.523pp), while equal weighting went from worst (1.640pp) to best
+    (1.149pp). Picking the best of five schemes on 41 points is selection, not
+    measurement.
+
+    It is also worth less than it looks. A residual of ~1.4pp on a class weighing
+    3.347% is about 0.047pp of headline error — already below the 0.1pp step the ABS
+    rounds to. Better fuel measurement cannot move a published figure. A genuine
+    volume proxy would need an external source (traffic counts, or population by
+    postcode, which is carried through to the events), and on this arithmetic it is
+    hard to justify.
   - Unweighted across fuels. The ABS class covers petrol, diesel and LPG on
     expenditure shares. Per-fuel series are produced and the blend is left to the
     caller rather than guessed at here.

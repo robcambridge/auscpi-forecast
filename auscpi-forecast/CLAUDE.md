@@ -371,10 +371,24 @@ levels, because layering a weak price forecast on a strong price measurement wou
 make the result unattributable. `FuelPoint.measured` says which regime a horizon is
 in. Futures-based forward paths are Phase 4.
 
-In rough value order from here: volume weighting for fuel (the one measured weakness —
-better station coverage correlates slightly worse, which is the signature of the crude
-sample approximating the ABS's volume weighting); the electricity rebate schedule as
-the first real extraction corpus; explicit seasonality for the holiday travel classes;
+**Volume weighting tested 2026-08-02 and struck off — do not re-run it.** The
+hypothesis was that re-pricing frequency proxies throughput. On the full sample
+`sqrt(frequency)` looked best (0.9812 against 0.9775 equal), but a split-sample check
+inverted the ranking: frequency weighting best on the first 20 months and worst on the
+last 21, equal weighting worst then best. Choosing the best of five schemes on 41
+points is selection, not measurement — exactly what the paragraph above warns about,
+which is worth noting because it caught me anyway.
+
+**And fuel measurement is already past the point of mattering.** A ~1.4pp residual on
+a class weighing 3.347% is ~0.047pp of headline error, under the 0.1pp step the ABS
+rounds to. No refinement of fuel measurement can move a published figure. Fuel's value
+is the size of its moves (0.199pp leverage, 1.098pp max), which the component already
+captures at 0.97.
+
+In rough value order from here: the electricity rebate schedule as the first real
+extraction corpus (0.113pp leverage, and the biggest moves are rebate timing rather
+than the July DMO); explicit seasonality for the holiday travel classes (0.54pp
+combined, the largest source of headline movement and still absent from the roadmap);
 then quantiles by horizon.
 
 **Log caught up 2026-08-01.** `log.csv` is now 78 rows: the original 39 at `539ae70`
