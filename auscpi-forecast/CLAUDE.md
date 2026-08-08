@@ -431,13 +431,26 @@ Two results:
   that happened to rise, and fitting it would flatter exactly the data that produced
   it.
 
-`p10/p25/p75/p90` on `ForecastRecord` are still empty. The machinery now exists; what
-is missing is a presentation decision, since bands stop at h=6.
+**Bands are now attached to every forecast path** (`forecast_path(with_bands=True)`,
+default on), populated to about h=6 and blank beyond. The blanks are deliberate: they
+say the sample cannot size that uncertainty yet.
 
-In rough value order from here: decide whether to log bands to h=6; the electricity
-rebate schedule as the first real extraction corpus (0.113pp leverage, max move
-0.408pp, and the big moves are rebate timing not the July DMO); Phase 7 delivery,
-which is untouched and is what makes any of this readable by anyone else.
+**The band measures dispersion, not total error, and is centred on the point.** The
+first version used raw error quantiles, which put the point BELOW its own p10 at h=5
+— and was inconsistent, since this project declines to bias-correct the point on the
+grounds that fourteen overlapping origins cannot establish a bias, while shifting the
+band by that bias asserts it can. Trust the bias and correct both, or trust neither;
+the second was already chosen. Anyone who does believe the bias should add it from
+`auscpi uncertainty`. At h=6 on `headline_yoy` it is −0.65pp, larger than the
+interquartile spread.
+
+In rough value order from here: **Phase 7 delivery**, which is entirely untouched and
+is what makes any of this readable by someone who is not running the CLI — a static
+fan chart on GitHub Pages plus a CSV/JSON endpoint. Then the electricity rebate
+schedule as the first real extraction corpus (0.113pp leverage, max move 0.408pp, and
+the big moves are rebate timing not the July DMO). Calibration monitoring — checking
+whether the bands actually cover at the stated rate — needs settled forecasts and the
+first one prints 2026-08-26.
 
 **Log caught up 2026-08-01.** `log.csv` is now 78 rows: the original 39 at `539ae70`
 plus 39 at `b6625e1` carrying `seasonal_index_mom`. Two things to know when reading

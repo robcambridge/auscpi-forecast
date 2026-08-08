@@ -546,12 +546,21 @@ def forecast_path(
     as_at: datetime | None = None,
     today: date | None = None,
     panel: pd.DataFrame | None = None,
+    with_bands: bool = True,
 ) -> Path:
     """Build (but do not log) a full path for one target.
 
     `as_at` is threaded to the panel load so a backtest reads the vintage that
     existed then (rule 3). `information_cutoff` records the newest period actually
     used, which is what makes look-ahead detectable after the fact.
+
+    BANDS ARE ATTACHED WHERE THE SAMPLE SUPPORTS THEM AND LEFT EMPTY WHERE IT DOES
+    NOT. `uncertainty` re-forecasts at every origin inside this same panel, so the
+    error sample never sees data the forecast could not, but it is in-sample for the
+    band itself — with fourteen usable origins there is no held-out alternative, and
+    pretending otherwise would be worse than saying so. Quantiles stop being reported
+    around h=6; blank p10/p90 on the long horizons is not an omission but the
+    honest statement that this sample cannot size that uncertainty yet.
     """
     if target not in TARGETS:
         raise KeyError(f"unknown target {target!r}; have {sorted(TARGETS)}")
@@ -583,10 +592,32 @@ def forecast_path(
     points = RULES[model](hist, months)
     bench_points = RULES[benchmark](hist, months)
 
+    bands: dict[int, dict[str, float | None]] = {}
+    if with_bands:
+        from auscpi.uncertainty import bands_for, error_sample, horizon_errors
+
+        try:
+            summary = {
+                row.horizon_months: row
+                for row in horizon_errors(
+                    error_sample(frame, target, model=model, horizons=list(horizons))
+                )
+            }
+        except (ValueError, KeyError):
+            summary = {}
+        for h, point in zip(horizons, points, strict=True):
+            row = summary.get(h)
+            bands[h] = (
+                bands_for(round(float(point), 3), row)
+                if row is not None
+                else {"p10": None, "p25": None, "p75": None, "p90": None}
+            )
+
     now = datetime.now(UTC).isoformat()
     records = []
     for h, month, point, bench in zip(horizons, months, points, bench_points, strict=True):
         released = release_calendar.release_date(month)
+        band = bands.get(h, {})
         records.append(
             ForecastRecord(
                 made_at=now,
@@ -594,6 +625,10 @@ def forecast_path(
                 horizon_months=months_between(origin, month),
                 target=target,
                 point=round(float(point), 3),
+                p10=band.get("p10"),
+                p25=band.get("p25"),
+                p75=band.get("p75"),
+                p90=band.get("p90"),
                 # Not made_at: the newest observation, so a backtest that used a
                 # later vintage than it claims is visible in the log.
                 information_cutoff=cutoff,

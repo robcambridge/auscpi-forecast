@@ -400,10 +400,22 @@ model and no price scraper can see it.
       and subtracting a bias fitted on that data would look like an improvement on
       exactly the data that produced it.
 
-- [ ] Populate `p10/p25/p75/p90` on logged forecasts. The fields have existed since
-      the first commit and are still empty. The machinery is done; what is missing is
-      a decision, because bands can only be emitted to h=6 and a path with bands on
-      half its horizons needs a presentation choice.
+- [x] **Populate `p10/p25/p75/p90` on logged forecasts** — done 2026-08-02.
+      `forecast_path` attaches bands where the sample supports them and leaves them
+      empty beyond, so a path carries bands to about h=6 and blanks after. The blanks
+      are the point: they say this sample cannot size that uncertainty yet, which is
+      more useful than either omitting bands entirely or inventing them.
+
+      **The band is centred on the point and measures DISPERSION, not total error.**
+      The first version used raw error quantiles, so a biased model's band sat
+      entirely above its own point — `headline_yoy` printed +3.12 against a p10 of
+      +3.18 at h=5. Beyond looking like a bug, it was inconsistent: this project
+      declines to bias-correct the point because fourteen overlapping origins cannot
+      establish a structural bias, and shifting the band by that same bias asserts
+      the opposite. Only "trust the bias and correct both" or "trust neither" are
+      coherent, and the second was already chosen. The bias is reported separately by
+      `auscpi uncertainty` for anyone who wants to apply it — at h=6 on `headline_yoy`
+      it is −0.65pp, larger than the interquartile spread, so it is not decorative.
 - [ ] Calibration monitoring per horizon. This is the product. An uncalibrated
       forecast is worse than none, because it invites confident wrong sizing.
 - [ ] Attribution: what is the path, how did it move since the last update, and

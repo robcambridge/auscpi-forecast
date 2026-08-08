@@ -72,22 +72,44 @@ def test_a_band_maps_the_error_quantiles_onto_the_outcome_the_right_way_round():
     assert band["p10"] < band["p25"] < band["p75"] < band["p90"]
 
 
-def test_a_biased_model_gets_an_off_centre_band():
-    """The band inherits the bias rather than being centred on the point.
+def test_a_wider_error_sample_gives_a_wider_band():
+    narrow = HorizonErrors(0, 20, 0.0, 0.2, {0.10: -0.3, 0.25: -0.1, 0.75: 0.1, 0.90: 0.3})
+    wide = HorizonErrors(6, 20, 0.0, 1.5, {0.10: -2.0, 0.25: -1.0, 0.75: 1.0, 0.90: 2.0})
+    n, w = bands_for(3.0, narrow), bands_for(3.0, wide)
+    assert (w["p90"] - w["p10"]) > (n["p90"] - n["p10"])
 
-    If the model reads low, an honest band sits above the point. Centring it would
-    misreport where the outcome is likely to fall.
+
+def test_the_point_always_lies_inside_its_own_band():
+    """A point below its own p10 is not a point estimate, it is a mislabelled one.
+
+    The first implementation used raw error quantiles, so a biased model's band sat
+    entirely above the point — headline_yoy printed point +3.12 against p10 +3.18 at
+    h=5. It was also inconsistent: this module declines to bias-correct the point
+    because fourteen overlapping origins cannot establish a structural bias, and
+    shifting the band by that same bias asserts the opposite.
     """
-    row = HorizonErrors(
+    biased = HorizonErrors(
         horizon_months=12,
         n=20,
         bias=-1.5,
         mean_absolute=1.5,
         quantiles={0.10: -2.5, 0.25: -2.0, 0.75: -1.0, 0.90: -0.5},
     )
-    band = bands_for(3.0, row)
-    assert band["p10"] > 3.0, "a model that reads low should have its band above the point"
-    assert band["p90"] == pytest.approx(5.5)
+    band = bands_for(3.0, biased)
+    assert band["p10"] < 3.0 < band["p90"], "the point must lie inside its own band"
+    # Dispersion is preserved: the raw quantiles span 2.0, and so does the band.
+    assert band["p90"] - band["p10"] == pytest.approx(2.0)
+
+
+def test_bias_shifts_nothing_because_the_band_measures_dispersion():
+    """Two horizons with identical spread but different bias get identical bands."""
+    spread = {0.10: -1.0, 0.25: -0.5, 0.75: 0.5, 0.90: 1.0}
+    unbiased = HorizonErrors(0, 20, bias=0.0, mean_absolute=0.7, quantiles=spread)
+    shifted = HorizonErrors(
+        6, 20, bias=-2.0, mean_absolute=2.0,
+        quantiles={k: v - 2.0 for k, v in spread.items()},
+    )
+    assert bands_for(3.0, unbiased) == bands_for(3.0, shifted)
 
 
 def test_no_band_when_the_horizon_is_not_estimable():

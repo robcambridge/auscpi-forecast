@@ -554,16 +554,33 @@ def forecast(
 
     for path in paths:
         table = Table(
-            "h", "month", "point", f"benchmark ({path.benchmark})", title=f"{path.target}"
+            "h",
+            "month",
+            "point",
+            "p10..p90",
+            f"benchmark ({path.benchmark})",
+            title=f"{path.target}",
         )
         for r in path.records:
+            band = (
+                f"{r.p10:+.2f} .. {r.p90:+.2f}"
+                if r.p10 is not None and r.p90 is not None
+                else "-"
+            )
             table.add_row(
                 str(r.horizon_months),
                 r.reference_month,
                 f"{r.point:+.2f}",
+                band,
                 "-" if r.benchmark_point is None else f"{r.benchmark_point:+.2f}",
             )
         console.print(table)
+        if any(r.p10 is None for r in path.records):
+            console.print(
+                "[dim]Bands stop where the sample runs out — fourteen usable origins "
+                "means two errors at h=12. They measure dispersion, not total error: "
+                "add the bias from `auscpi uncertainty` if you believe it.[/dim]"
+            )
         version = path.records[0].model_version if path.records else "?"
         console.print(
             f"[dim]model {path.model} {version} · origin {path.origin} · "

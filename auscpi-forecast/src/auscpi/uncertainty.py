@@ -147,20 +147,35 @@ def bands_for(
 ) -> dict[str, float | None]:
     """Turn a point forecast into p10/p25/p75/p90, or Nones if not estimable.
 
-    The band is the point plus the error quantiles, so it inherits any bias in the
-    model rather than being centred on the point. That is intentional: if the model
-    reads low, an honest band should sit low too, and hiding that inside a symmetric
-    interval would misreport where the outcome is likely to fall.
+    THE BAND IS CENTRED ON THE POINT, using the spread of errors about their own
+    mean rather than the raw error quantiles. The first version here used the raw
+    quantiles, so the band inherited the model's bias — and because the year-ended
+    models read low, that put the POINT BELOW ITS OWN p10 at h=5 and h=6. A tenth
+    percentile the point estimate sits under is not a tenth percentile; a reader
+    would rightly read the published point as a 5th percentile forecast.
 
-    Note the sign. An error is point minus actual, so a NEGATIVE error means the model
-    read low and the actual was higher — the 90th percentile of the error maps to the
-    LOW end of the outcome band.
+    The deeper problem was inconsistency. This module declines to bias-correct the
+    point, on the grounds that fourteen overlapping origins over one inflation
+    episode cannot establish a structural bias. Shifting the whole band by that same
+    bias asserts the opposite. Only two positions are coherent — trust the bias and
+    correct both, or trust neither — and the decision already taken is the second.
+
+    SO THIS BAND IS DISPERSION, NOT TOTAL ERROR, and a reader who believes the bias
+    should add it. `HorizonErrors.bias` is reported beside it for exactly that, and
+    `auscpi uncertainty` prints it in its own column. At h=6 on headline_yoy the bias
+    is -0.65pp, which is larger than the interquartile spread — so the caveat is not
+    decorative.
+
+    Note the sign convention. An error is point minus actual, so a NEGATIVE error
+    means the model read low and the outcome was higher: the 90th percentile of the
+    error maps to the LOW end of the outcome band.
     """
     if not errors.estimable:
         return {"p10": None, "p25": None, "p75": None, "p90": None}
+    centred = {level: value - errors.bias for level, value in errors.quantiles.items()}
     return {
-        "p10": round(point - errors.quantiles[0.90], 3),
-        "p25": round(point - errors.quantiles[0.75], 3),
-        "p75": round(point - errors.quantiles[0.25], 3),
-        "p90": round(point - errors.quantiles[0.10], 3),
+        "p10": round(point - centred[0.90], 3),
+        "p25": round(point - centred[0.75], 3),
+        "p75": round(point - centred[0.25], 3),
+        "p90": round(point - centred[0.10], 3),
     }
