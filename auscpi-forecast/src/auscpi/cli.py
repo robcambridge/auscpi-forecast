@@ -14,6 +14,7 @@ auscpi score                  error vs benchmark, for settled forecasts
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from pathlib import Path
 
 import typer
 from rich.console import Console
@@ -275,6 +276,49 @@ def rents(
             "[dim]n counts forecasts, not independent observations: origins overlap and "
             "year-ended windows overlap elevenfold.[/dim]"
         )
+
+
+@app.command()
+def publish(
+    site: str = typer.Option("site", help="Directory for the static page."),
+    horizons: int = typer.Option(12, help="Longest horizon. The path runs h=0..N."),
+    as_at: str = typer.Option(None, "--as-at", help="Use the vintage as at this instant."),
+) -> None:
+    """Write the published endpoint and the static dashboard.
+
+    `data/published/forecast.{json,csv}` is tracked in git, so it is served by
+    raw.githubusercontent.com with no hosting. The page is generated rather than
+    committed, because a committed HTML file rots against the data it describes.
+    """
+    from auscpi.config import settings
+    from auscpi.forecast import forecast_all
+    from auscpi.publish import write_endpoint, write_site
+
+    cutoff = None
+    if as_at:
+        cutoff = datetime.fromisoformat(as_at)
+        if cutoff.tzinfo is None:
+            cutoff = cutoff.replace(tzinfo=UTC)
+
+    try:
+        paths = forecast_all(horizons=range(horizons + 1), as_at=cutoff)
+    except FileNotFoundError as exc:
+        console.print(f"[red]no data[/red] {exc}")
+        raise typer.Exit(code=1) from exc
+    if not paths:
+        console.print("[yellow]no target could be forecast from this vintage[/yellow]")
+        raise typer.Exit(code=1)
+
+    written = write_endpoint(paths, settings.published_dir)
+    page = write_site(paths, Path(site))
+
+    for p in written:
+        console.print(f"  [green]wrote[/green] {p}")
+    console.print(f"  [green]wrote[/green] {page}")
+    console.print(
+        f"[dim]{len(paths)} target(s), cutoff {paths[0].information_cutoff}. "
+        "Commit data/published — its git history is the same evidence log.csv is.[/dim]"
+    )
 
 
 @app.command()

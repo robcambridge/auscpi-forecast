@@ -423,8 +423,27 @@ model and no price scraper can see it.
 
 ## Phase 7 — delivery (weeks 13–16)
 
-- [ ] Static dashboard with the fan chart (GitHub Pages is enough)
-- [ ] CSV/JSON endpoint
+- [x] **Static dashboard with the fan chart** — `auscpi publish`, in
+      `src/auscpi/publish.py`, deployed by `.github/workflows/pages.yml`.
+      Self-contained: inline SVG and inline CSS, no scripts, no fonts, no CDN, so it
+      renders offline and survives being saved or emailed. Charts are drawn by hand
+      rather than with a plotting library, because the output must be one file and a
+      chart this simple does not justify a dependency.
+
+      The fan is p10–p90 **and stops where the error sample stops**, around h=6. It
+      does not taper to the end of the horizon: that would look better and would
+      misrepresent how much is known. The page says so in words, alongside the
+      year-ended low bias and the correlated-horizons caveat.
+
+      Deployed as a Pages *artifact* rather than from a committed folder, which also
+      sidesteps the nested-repo problem — Pages can only serve the root or /docs of
+      the repository root, and this project sits a directory below it.
+
+- [x] **CSV/JSON endpoint** — `data/published/forecast.{json,csv}`, written by the
+      same command and **committed**, so `raw.githubusercontent.com` serves it with
+      no hosting and no dependency on Pages staying enabled. Its git history is the
+      same kind of evidence `forecasts/log.csv` is. Nulls survive as nulls, so an
+      unestimable band is absent rather than zero.
 - [ ] Daily high-frequency index from scraped data, validated against each print
       — this accumulates evidence far faster than twelve prints a year, which
       matters more for a forecast than a nowcast because the settled-observation

@@ -444,13 +444,27 @@ the second was already chosen. Anyone who does believe the bias should add it fr
 `auscpi uncertainty`. At h=6 on `headline_yoy` it is −0.65pp, larger than the
 interquartile spread.
 
-In rough value order from here: **Phase 7 delivery**, which is entirely untouched and
-is what makes any of this readable by someone who is not running the CLI — a static
-fan chart on GitHub Pages plus a CSV/JSON endpoint. Then the electricity rebate
-schedule as the first real extraction corpus (0.113pp leverage, max move 0.408pp, and
-the big moves are rebate timing not the July DMO). Calibration monitoring — checking
-whether the bands actually cover at the stated rate — needs settled forecasts and the
-first one prints 2026-08-26.
+**Phase 7 delivery shipped 2026-08-02.** `auscpi publish` writes two things:
+
+- `data/published/forecast.{json,csv}` — **committed**, so raw.githubusercontent.com
+  serves it with no hosting and no dependency on Pages. Its git history is the same
+  evidence `log.csv` is.
+- `site/index.html` — **gitignored**, generated, deployed by `.github/workflows/
+  pages.yml` as a Pages artifact. A committed HTML file rots against its data; and the
+  artifact route sidesteps the nested-repo problem, since Pages can only serve the
+  root or /docs of the repo root and this project sits below it.
+
+The page is self-contained — inline SVG, inline CSS, no scripts, no fonts, no CDN. The
+fan stops where the error sample stops (~h=6) rather than tapering to h=12, and the
+page says why in words. Verified rendering in a browser, which caught the last x-axis
+label being clipped; outer labels are now anchored inwards.
+
+In rough value order from here: **calibration monitoring** (Phase 6's last item, and
+the roadmap's "this is the product") — blocked until forecasts settle, first print
+2026-08-26; **attribution** (what moved the path since last update); the electricity
+rebate schedule as the first real extraction corpus; and the daily high-frequency
+index, which is Phase 7's remaining item and the fastest route to evidence, since it
+validates against every print rather than twelve a year.
 
 **Log caught up 2026-08-01.** `log.csv` is now 78 rows: the original 39 at `539ae70`
 plus 39 at `b6625e1` carrying `seasonal_index_mom`. Two things to know when reading

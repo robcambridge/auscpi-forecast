@@ -1,0 +1,64 @@
+name: pages
+
+# Renders the dashboard and deploys it to GitHub Pages.
+#
+# Uses the artifact-based Pages deployment rather than serving a committed folder,
+# which matters here: the Python project sits one directory below the repository
+# root, and Pages can only serve the root or /docs of the root. Uploading an
+# artifact sidesteps that entirely and means the rendered HTML never has to be
+# committed — a checked-in page rots against the data it describes.
+#
+# Runs after collection so the page follows the data, and on demand.
+
+on:
+  schedule:
+    - cron: "30 20 1 * *"   # 1st of the month, after collect-abs at 20:00
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "auscpi-forecast/src/auscpi/publish.py"
+      - ".github/workflows/pages.yml"
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time; a queued run should not overtake a running one.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: auscpi-forecast
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - run: pip install -e .
+
+      # Needs data/raw, which is committed, so the checkout is enough — no
+      # collection step and no secrets.
+      - name: Render the dashboard and the endpoint
+        run: auscpi publish --site site
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: auscpi-forecast/site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
