@@ -52,21 +52,20 @@ TARGET_TITLES = {
     "trimmed_mean_yoy": "Trimmed mean, year ended",
 }
 
-#: Plain-English gloss for each rule. A reader arriving at this page cold should not
-#: have to decode an identifier like `seasonal_index_projection` to know what produced
-#: the line they are looking at.
+#: What each rule actually is, in one clause. The identifier is kept alongside so the
+#: page and the code use the same name, but an identifier is not a specification.
 MODEL_NOTES = {
     "seasonal_index_projection": (
-        "projects the seasonally adjusted index forward, then puts the published "
-        "seasonal pattern back on"
+        "random walk with drift on the seasonally adjusted index, published seasonal "
+        "factors reimposed"
     ),
-    "seasonal_index_mom": "the same projected index, read month to month",
-    "index_projection": "projects the index forward; this series is already seasonally adjusted",
-    "seasonal_naive": "repeats the same calendar month a year earlier",
-    "random_walk": "carries the last published year-ended rate forward unchanged",
-    "mean_mom": "the average monthly movement over the past year",
-    "atkeson_ohanian": "the average of the last twelve months",
-    "target_midpoint": "the midpoint of the Reserve Bank's 2–3% target band",
+    "seasonal_index_mom": "the same projected index level, differenced at one month",
+    "index_projection": "random walk with drift on the index; series already seasonally adjusted",
+    "seasonal_naive": "same calendar month a year earlier",
+    "random_walk": "no change from the last published year-ended rate",
+    "mean_mom": "twelve-month mean of monthly changes",
+    "atkeson_ohanian": "twelve-month average, annualised",
+    "target_midpoint": "midpoint of the RBA's 2–3% target band",
 }
 
 
@@ -177,10 +176,7 @@ h2 { font-size:1.05rem; margin:2.5rem 0 .35rem; }
 .sub { color:#5c626e; margin:0 0 2rem; }
 .meta { color:#5c626e; font-size:.85rem; margin:.2rem 0 1rem; line-height:1.5; }
 .method { border-top:1px solid #e6e8ec; border-bottom:1px solid #e6e8ec;
-  padding:.5rem 0 1.4rem; margin:0 0 1rem; }
-.method h2 { font-size:.95rem; text-transform:uppercase; letter-spacing:.06em;
-  color:#5c626e; margin:1.4rem 0 .8rem; }
-.method p { font-size:.94rem; margin:.7rem 0; }
+  padding:1rem 0; margin:0 0 1rem; font-size:.92rem; color:#3f4552; }
 figure { margin:0 0 .5rem; }
 svg { display:block; }
 .grid { stroke:#e6e8ec; stroke-width:1; }
@@ -266,27 +262,10 @@ def render_dashboard(paths: list[ForecastPath], *, generated: str | None = None)
 <p class="sub">A path from h=0 to h=12, updated after each ABS release.
 Information cutoff <strong>{cutoff}</strong>. Generated {stamp}.</p>
 
-<section class="method">
-<h2>How this is made</h2>
-<p>Each chart is a <em>path</em>: a forecast for the current month (h=0) and for each of the
-twelve months after it, rather than a single number. Everything is built from the ABS
-Consumer Price Index; <strong>information cutoff</strong> above is the most recent month
-of published data used, so anything after it is genuinely forecast.</p>
-
-<p>The method projects the underlying <strong>index level</strong> forward and reads the
-rate off that, instead of forecasting the published rate directly. This matters because a
-year-ended rate compares two index levels twelve months apart, so most of it is already
-published: forecasting July from June data, eleven of the twelve monthly movements are
-history and only one is unknown. Those known movements drop out of the twelve-month
-comparison on a fixed, knowable schedule &mdash; a <em>base effect</em> &mdash; and simply
-carrying the last published rate forward would throw all of it away.</p>
-
-<p>The share that is genuinely forecast grows with horizon, so the model decays into a
-naive rule at the long end rather than claiming skill it does not have. Every point is
-shown against a <strong>benchmark</strong>: a deliberately simple rule that is hard to beat.
-Without one, an error of a few tenths means nothing &mdash; nobody can tell whether that is
-good or dreadful.</p>
-</section>
+<p class="method"><strong>Method.</strong> A univariate random walk with drift on the
+seasonally adjusted index level, with the ABS's published seasonal factors reimposed. The
+year-ended and month-on-month rates are both derived from that single projected index, so
+they cannot disagree. Every point is shown against a naive benchmark.</p>
 {"".join(blocks)}
 <div class="caveat">
 <p><strong>Read this before using the numbers.</strong></p>

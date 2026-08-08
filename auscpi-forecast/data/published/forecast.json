@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-08T08:44:15.284713+00:00",
+  "generated_at": "2026-08-08T09:05:13.336208+00:00",
   "information_cutoff": "2026-06",
   "paths": [
     {
@@ -10,7 +10,7 @@
       "information_cutoff": "2026-06",
       "records": [
         {
-          "made_at": "2026-08-08T08:44:13.577781+00:00",
+          "made_at": "2026-08-08T09:05:11.596838+00:00",
           "reference_month": "2026-08",
           "horizon_months": 0,
           "target": "headline_mom",
@@ -29,7 +29,7 @@
           "note": "h=0; prints 2026-09-30"
         },
         {
-          "made_at": "2026-08-08T08:44:13.577781+00:00",
+          "made_at": "2026-08-08T09:05:11.596838+00:00",
           "reference_month": "2026-09",
           "horizon_months": 1,
           "target": "headline_mom",
@@ -48,7 +48,7 @@
           "note": "h=1; prints 2026-10-28"
         },
         {
-          "made_at": "2026-08-08T08:44:13.577781+00:00",
+          "made_at": "2026-08-08T09:05:11.596838+00:00",
           "reference_month": "2026-10",
           "horizon_months": 2,
           "target": "headline_mom",
@@ -67,7 +67,7 @@
           "note": "h=2; prints 2026-11-25"
         },
         {
-          "made_at": "2026-08-08T08:44:13.577781+00:00",
+          "made_at": "2026-08-08T09:05:11.596838+00:00",
           "reference_month": "2026-11",
           "horizon_months": 3,
           "target": "headline_mom",
@@ -86,7 +86,7 @@
           "note": "h=3; prints 2027-01-06"
         },
         {
-          "made_at": "2026-08-08T08:44:13.577781+00:00",
+          "made_at": "2026-08-08T09:05:11.596838+00:00",
           "reference_month": "2026-12",
           "horizon_months": 4,
           "target": "headline_mom",
@@ -105,7 +105,7 @@
           "note": "h=4; release date not in calendar"
         },
         {
-          "made_at": "2026-08-08T08:44:13.577781+00:00",
+          "made_at": "2026-08-08T09:05:11.596838+00:00",
           "reference_month": "2027-01",
           "horizon_months": 5,
           "target": "headline_mom",
@@ -124,7 +124,7 @@
           "note": "h=5; release date not in calendar"
         },
         {
-          "made_at": "2026-08-08T08:44:13.577781+00:00",
+          "made_at": "2026-08-08T09:05:11.596838+00:00",
           "reference_month": "2027-02",
           "horizon_months": 6,
           "target": "headline_mom",
@@ -143,7 +143,7 @@
           "note": "h=6; release date not in calendar"
         },
         {
-          "made_at": "2026-08-08T08:44:13.577781+00:00",
+          "made_at": "2026-08-08T09:05:11.596838+00:00",
           "reference_month": "2027-03",
           "horizon_months": 7,
           "target": "headline_mom",
@@ -162,7 +162,7 @@
           "note": "h=7; release date not in calendar"
         },
         {
-          "made_at": "2026-08-08T08:44:13.577781+00:00",
+          "made_at": "2026-08-08T09:05:11.596838+00:00",
           "reference_month": "2027-04",
           "horizon_months": 8,
           "target": "headline_mom",
@@ -181,7 +181,7 @@
           "note": "h=8; release date not in calendar"
         },
         {
-          "made_at": "2026-08-08T08:44:13.577781+00:00",
+          "made_at": "2026-08-08T09:05:11.596838+00:00",
           "reference_month": "2027-05",
           "horizon_months": 9,
           "target": "headline_mom",
@@ -200,7 +200,7 @@
           "note": "h=9; release date not in calendar"
         },
         {
-          "made_at": "2026-08-08T08:44:13.577781+00:00",
+          "made_at": "2026-08-08T09:05:11.596838+00:00",
           "reference_month": "2027-06",
           "horizon_months": 10,
           "target": "headline_mom",
@@ -219,7 +219,7 @@
           "note": "h=10; release date not in calendar"
         },
         {
-          "made_at": "2026-08-08T08:44:13.577781+00:00",
+          "made_at": "2026-08-08T09:05:11.596838+00:00",
           "reference_month": "2027-07",
           "horizon_months": 11,
           "target": "headline_mom",
@@ -238,7 +238,7 @@
           "note": "h=11; release date not in calendar"
         },
         {
-          "made_at": "2026-08-08T08:44:13.577781+00:00",
+          "made_at": "2026-08-08T09:05:11.596838+00:00",
           "reference_month": "2027-08",
           "horizon_months": 12,
           "target": "headline_mom",
@@ -266,7 +266,7 @@
       "information_cutoff": "2026-06",
       "records": [
         {
-          "made_at": "2026-08-08T08:44:14.566013+00:00",
+          "made_at": "2026-08-08T09:05:12.588838+00:00",
           "reference_month": "2026-08",
           "horizon_months": 0,
           "target": "headline_yoy",
@@ -285,7 +285,7 @@
           "note": "h=0; prints 2026-09-30"
         },
         {
-          "made_at": "2026-08-08T08:44:14.566013+00:00",
+          "made_at": "2026-08-08T09:05:12.588838+00:00",
           "reference_month": "2026-09",
           "horizon_months": 1,
           "target": "headline_yoy",
@@ -304,7 +304,7 @@
           "note": "h=1; prints 2026-10-28"
         },
         {
-          "made_at": "2026-08-08T08:44:14.566013+00:00",
+          "made_at": "2026-08-08T09:05:12.588838+00:00",
           "reference_month": "2026-10",
           "horizon_months": 2,
           "target": "headline_yoy",
@@ -323,7 +323,7 @@
           "note": "h=2; prints 2026-11-25"
         },
         {
-          "made_at": "2026-08-08T08:44:14.566013+00:00",
+          "made_at": "2026-08-08T09:05:12.588838+00:00",
           "reference_month": "2026-11",
           "horizon_months": 3,
           "target": "headline_yoy",
@@ -342,7 +342,7 @@
           "note": "h=3; prints 2027-01-06"
         },
         {
-          "made_at": "2026-08-08T08:44:14.566013+00:00",
+          "made_at": "2026-08-08T09:05:12.588838+00:00",
           "reference_month": "2026-12",
           "horizon_months": 4,
           "target": "headline_yoy",
@@ -361,7 +361,7 @@
           "note": "h=4; release date not in calendar"
         },
         {
-          "made_at": "2026-08-08T08:44:14.566013+00:00",
+          "made_at": "2026-08-08T09:05:12.588838+00:00",
           "reference_month": "2027-01",
           "horizon_months": 5,
           "target": "headline_yoy",
@@ -380,7 +380,7 @@
           "note": "h=5; release date not in calendar"
         },
         {
-          "made_at": "2026-08-08T08:44:14.566013+00:00",
+          "made_at": "2026-08-08T09:05:12.588838+00:00",
           "reference_month": "2027-02",
           "horizon_months": 6,
           "target": "headline_yoy",
@@ -399,7 +399,7 @@
           "note": "h=6; release date not in calendar"
         },
         {
-          "made_at": "2026-08-08T08:44:14.566013+00:00",
+          "made_at": "2026-08-08T09:05:12.588838+00:00",
           "reference_month": "2027-03",
           "horizon_months": 7,
           "target": "headline_yoy",
@@ -418,7 +418,7 @@
           "note": "h=7; release date not in calendar"
         },
         {
-          "made_at": "2026-08-08T08:44:14.566013+00:00",
+          "made_at": "2026-08-08T09:05:12.588838+00:00",
           "reference_month": "2027-04",
           "horizon_months": 8,
           "target": "headline_yoy",
@@ -437,7 +437,7 @@
           "note": "h=8; release date not in calendar"
         },
         {
-          "made_at": "2026-08-08T08:44:14.566013+00:00",
+          "made_at": "2026-08-08T09:05:12.588838+00:00",
           "reference_month": "2027-05",
           "horizon_months": 9,
           "target": "headline_yoy",
@@ -456,7 +456,7 @@
           "note": "h=9; release date not in calendar"
         },
         {
-          "made_at": "2026-08-08T08:44:14.566013+00:00",
+          "made_at": "2026-08-08T09:05:12.588838+00:00",
           "reference_month": "2027-06",
           "horizon_months": 10,
           "target": "headline_yoy",
@@ -475,7 +475,7 @@
           "note": "h=10; release date not in calendar"
         },
         {
-          "made_at": "2026-08-08T08:44:14.566013+00:00",
+          "made_at": "2026-08-08T09:05:12.588838+00:00",
           "reference_month": "2027-07",
           "horizon_months": 11,
           "target": "headline_yoy",
@@ -494,7 +494,7 @@
           "note": "h=11; release date not in calendar"
         },
         {
-          "made_at": "2026-08-08T08:44:14.566013+00:00",
+          "made_at": "2026-08-08T09:05:12.588838+00:00",
           "reference_month": "2027-08",
           "horizon_months": 12,
           "target": "headline_yoy",
@@ -522,7 +522,7 @@
       "information_cutoff": "2026-06",
       "records": [
         {
-          "made_at": "2026-08-08T08:44:15.283713+00:00",
+          "made_at": "2026-08-08T09:05:13.334202+00:00",
           "reference_month": "2026-08",
           "horizon_months": 0,
           "target": "trimmed_mean_yoy",
@@ -541,7 +541,7 @@
           "note": "h=0; prints 2026-09-30"
         },
         {
-          "made_at": "2026-08-08T08:44:15.283713+00:00",
+          "made_at": "2026-08-08T09:05:13.334202+00:00",
           "reference_month": "2026-09",
           "horizon_months": 1,
           "target": "trimmed_mean_yoy",
@@ -560,7 +560,7 @@
           "note": "h=1; prints 2026-10-28"
         },
         {
-          "made_at": "2026-08-08T08:44:15.283713+00:00",
+          "made_at": "2026-08-08T09:05:13.334202+00:00",
           "reference_month": "2026-10",
           "horizon_months": 2,
           "target": "trimmed_mean_yoy",
@@ -579,7 +579,7 @@
           "note": "h=2; prints 2026-11-25"
         },
         {
-          "made_at": "2026-08-08T08:44:15.283713+00:00",
+          "made_at": "2026-08-08T09:05:13.334202+00:00",
           "reference_month": "2026-11",
           "horizon_months": 3,
           "target": "trimmed_mean_yoy",
@@ -598,7 +598,7 @@
           "note": "h=3; prints 2027-01-06"
         },
         {
-          "made_at": "2026-08-08T08:44:15.283713+00:00",
+          "made_at": "2026-08-08T09:05:13.334202+00:00",
           "reference_month": "2026-12",
           "horizon_months": 4,
           "target": "trimmed_mean_yoy",
@@ -617,7 +617,7 @@
           "note": "h=4; release date not in calendar"
         },
         {
-          "made_at": "2026-08-08T08:44:15.283713+00:00",
+          "made_at": "2026-08-08T09:05:13.334202+00:00",
           "reference_month": "2027-01",
           "horizon_months": 5,
           "target": "trimmed_mean_yoy",
@@ -636,7 +636,7 @@
           "note": "h=5; release date not in calendar"
         },
         {
-          "made_at": "2026-08-08T08:44:15.283713+00:00",
+          "made_at": "2026-08-08T09:05:13.334202+00:00",
           "reference_month": "2027-02",
           "horizon_months": 6,
           "target": "trimmed_mean_yoy",
@@ -655,7 +655,7 @@
           "note": "h=6; release date not in calendar"
         },
         {
-          "made_at": "2026-08-08T08:44:15.283713+00:00",
+          "made_at": "2026-08-08T09:05:13.334202+00:00",
           "reference_month": "2027-03",
           "horizon_months": 7,
           "target": "trimmed_mean_yoy",
@@ -674,7 +674,7 @@
           "note": "h=7; release date not in calendar"
         },
         {
-          "made_at": "2026-08-08T08:44:15.283713+00:00",
+          "made_at": "2026-08-08T09:05:13.334202+00:00",
           "reference_month": "2027-04",
           "horizon_months": 8,
           "target": "trimmed_mean_yoy",
@@ -693,7 +693,7 @@
           "note": "h=8; release date not in calendar"
         },
         {
-          "made_at": "2026-08-08T08:44:15.283713+00:00",
+          "made_at": "2026-08-08T09:05:13.334202+00:00",
           "reference_month": "2027-05",
           "horizon_months": 9,
           "target": "trimmed_mean_yoy",
@@ -712,7 +712,7 @@
           "note": "h=9; release date not in calendar"
         },
         {
-          "made_at": "2026-08-08T08:44:15.283713+00:00",
+          "made_at": "2026-08-08T09:05:13.334202+00:00",
           "reference_month": "2027-06",
           "horizon_months": 10,
           "target": "trimmed_mean_yoy",
@@ -731,7 +731,7 @@
           "note": "h=10; release date not in calendar"
         },
         {
-          "made_at": "2026-08-08T08:44:15.283713+00:00",
+          "made_at": "2026-08-08T09:05:13.334202+00:00",
           "reference_month": "2027-07",
           "horizon_months": 11,
           "target": "trimmed_mean_yoy",
@@ -750,7 +750,7 @@
           "note": "h=11; release date not in calendar"
         },
         {
-          "made_at": "2026-08-08T08:44:15.283713+00:00",
+          "made_at": "2026-08-08T09:05:13.334202+00:00",
           "reference_month": "2027-08",
           "horizon_months": 12,
           "target": "trimmed_mean_yoy",

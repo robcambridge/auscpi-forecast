@@ -72,22 +72,18 @@ def test_unbanded_horizons_are_dashes_in_the_table_not_blanks():
     assert "&mdash;" in html
 
 
-def test_the_page_explains_the_method_before_the_first_chart():
-    """A reader arriving cold needs to know what they are looking at."""
+def test_the_page_names_the_model_class_before_the_first_chart():
+    """A reader should not have to infer the model class from an identifier."""
     html = render_dashboard([MIXED])
-    method = html.index("How this is made")
-    first_chart = html.index("<svg")
-    assert method < first_chart
-    for phrase in ("index level", "base effect", "benchmark", "information cutoff"):
-        assert phrase.lower() in html.lower(), phrase
+    assert html.index("random walk with drift") < html.index("<svg")
+    assert "seasonally adjusted index" in html
 
 
-def test_model_names_are_glossed_in_plain_english():
-    """`seasonal_index_projection` is an identifier, not an explanation."""
+def test_model_names_carry_a_specification_not_just_an_identifier():
     html = render_dashboard([MIXED])
-    assert "seasonal_index_projection" in html
-    assert "puts the published seasonal pattern back on" in html
-    assert "carries the last published year-ended rate forward" in html
+    assert "seasonal_index_projection" in html, "the code's own name should still appear"
+    assert "random walk with drift on the seasonally adjusted index" in html
+    assert "no change from the last published year-ended rate" in html
 
 
 def test_an_unglossed_rule_still_renders():
