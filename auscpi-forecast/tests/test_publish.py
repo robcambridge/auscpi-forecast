@@ -72,6 +72,31 @@ def test_unbanded_horizons_are_dashes_in_the_table_not_blanks():
     assert "&mdash;" in html
 
 
+def test_the_page_explains_the_method_before_the_first_chart():
+    """A reader arriving cold needs to know what they are looking at."""
+    html = render_dashboard([MIXED])
+    method = html.index("How this is made")
+    first_chart = html.index("<svg")
+    assert method < first_chart
+    for phrase in ("index level", "base effect", "benchmark", "information cutoff"):
+        assert phrase.lower() in html.lower(), phrase
+
+
+def test_model_names_are_glossed_in_plain_english():
+    """`seasonal_index_projection` is an identifier, not an explanation."""
+    html = render_dashboard([MIXED])
+    assert "seasonal_index_projection" in html
+    assert "puts the published seasonal pattern back on" in html
+    assert "carries the last published year-ended rate forward" in html
+
+
+def test_an_unglossed_rule_still_renders():
+    """A new rule must not break the page before someone writes its note."""
+    from auscpi.publish import _describe
+
+    assert _describe("some_new_rule") == "some_new_rule"
+
+
 def test_the_page_states_why_the_fan_stops():
     """The blank half of the chart is the honest part and needs saying in words."""
     html = render_dashboard([MIXED]).lower()
@@ -143,7 +168,8 @@ def test_every_target_gets_its_own_section():
     other = path_with([record(h, 0.3) for h in range(4)])
     other.target = "headline_mom"
     html = render_dashboard([MIXED, other])
-    assert html.count("<h2>") == 2
+    # Counted by chart rather than by <h2>, since the method section has one too.
+    assert html.count("<figure>") == 2
     assert "Headline CPI, year ended" in html
     assert "Headline CPI, month on month" in html
 

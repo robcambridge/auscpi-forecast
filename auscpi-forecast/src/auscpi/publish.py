@@ -52,6 +52,28 @@ TARGET_TITLES = {
     "trimmed_mean_yoy": "Trimmed mean, year ended",
 }
 
+#: Plain-English gloss for each rule. A reader arriving at this page cold should not
+#: have to decode an identifier like `seasonal_index_projection` to know what produced
+#: the line they are looking at.
+MODEL_NOTES = {
+    "seasonal_index_projection": (
+        "projects the seasonally adjusted index forward, then puts the published "
+        "seasonal pattern back on"
+    ),
+    "seasonal_index_mom": "the same projected index, read month to month",
+    "index_projection": "projects the index forward; this series is already seasonally adjusted",
+    "seasonal_naive": "repeats the same calendar month a year earlier",
+    "random_walk": "carries the last published year-ended rate forward unchanged",
+    "mean_mom": "the average monthly movement over the past year",
+    "atkeson_ohanian": "the average of the last twelve months",
+    "target_midpoint": "the midpoint of the Reserve Bank's 2–3% target band",
+}
+
+
+def _describe(rule: str) -> str:
+    note = MODEL_NOTES.get(rule)
+    return f"{rule} &mdash; {note}" if note else rule
+
 
 def _nice_bounds(values: list[float]) -> tuple[float, float]:
     """Axis bounds with a little air, and never a zero-height chart."""
@@ -153,7 +175,12 @@ body { margin:0; padding:2rem 1rem 4rem; font:16px/1.55 -apple-system,BlinkMacSy
 h1 { font-size:1.6rem; margin:0 0 .25rem; letter-spacing:-.01em; }
 h2 { font-size:1.05rem; margin:2.5rem 0 .35rem; }
 .sub { color:#5c626e; margin:0 0 2rem; }
-.meta { color:#5c626e; font-size:.85rem; margin:.2rem 0 1rem; }
+.meta { color:#5c626e; font-size:.85rem; margin:.2rem 0 1rem; line-height:1.5; }
+.method { border-top:1px solid #e6e8ec; border-bottom:1px solid #e6e8ec;
+  padding:.5rem 0 1.4rem; margin:0 0 1rem; }
+.method h2 { font-size:.95rem; text-transform:uppercase; letter-spacing:.06em;
+  color:#5c626e; margin:1.4rem 0 .8rem; }
+.method p { font-size:.94rem; margin:.7rem 0; }
 figure { margin:0 0 .5rem; }
 svg { display:block; }
 .grid { stroke:#e6e8ec; stroke-width:1; }
@@ -180,8 +207,8 @@ footer { margin-top:3rem; color:#8a909c; font-size:.82rem; }
 a { color:#2f6feb; }
 @media (prefers-color-scheme: dark) {
   body { color:#e6e8ec; background:#12141a; }
-  .sub,.meta,.ytick,.xtick,th,footer { color:#98a0ae; }
-  .grid,th,td { border-color:#252932; stroke:#252932; }
+  .sub,.meta,.ytick,.xtick,th,footer,.method h2 { color:#98a0ae; }
+  .grid,th,td,.method { border-color:#252932; stroke:#252932; }
   .caveat { background:#241f10; border-color:#4a3d18; }
 }
 """
@@ -218,8 +245,9 @@ def render_dashboard(paths: list[ForecastPath], *, generated: str | None = None)
         title = TARGET_TITLES.get(path.target, path.target)
         blocks.append(
             f"<h2>{title}</h2>"
-            f'<p class="meta">{path.model} &middot; benchmark {path.benchmark} '
-            f"&middot; origin {path.origin}</p>"
+            f'<p class="meta"><strong>Model:</strong> {_describe(path.model)}.<br>'
+            f"<strong>Benchmark:</strong> {_describe(path.benchmark)}.<br>"
+            f"Forecast made in {path.origin}.</p>"
             f"<figure>{_svg(path)}</figure>"
             '<p class="key">'
             '<span class="k-point"><i></i>forecast</span>'
@@ -237,6 +265,28 @@ def render_dashboard(paths: list[ForecastPath], *, generated: str | None = None)
 <h1>Australian CPI forecast</h1>
 <p class="sub">A path from h=0 to h=12, updated after each ABS release.
 Information cutoff <strong>{cutoff}</strong>. Generated {stamp}.</p>
+
+<section class="method">
+<h2>How this is made</h2>
+<p>Each chart is a <em>path</em>: a forecast for the current month (h=0) and for each of the
+twelve months after it, rather than a single number. Everything is built from the ABS
+Consumer Price Index; <strong>information cutoff</strong> above is the most recent month
+of published data used, so anything after it is genuinely forecast.</p>
+
+<p>The method projects the underlying <strong>index level</strong> forward and reads the
+rate off that, instead of forecasting the published rate directly. This matters because a
+year-ended rate compares two index levels twelve months apart, so most of it is already
+published: forecasting July from June data, eleven of the twelve monthly movements are
+history and only one is unknown. Those known movements drop out of the twelve-month
+comparison on a fixed, knowable schedule &mdash; a <em>base effect</em> &mdash; and simply
+carrying the last published rate forward would throw all of it away.</p>
+
+<p>The share that is genuinely forecast grows with horizon, so the model decays into a
+naive rule at the long end rather than claiming skill it does not have. Every point is
+shown against a <strong>benchmark</strong>: a deliberately simple rule that is hard to beat.
+Without one, an error of a few tenths means nothing &mdash; nobody can tell whether that is
+good or dreadful.</p>
+</section>
 {"".join(blocks)}
 <div class="caveat">
 <p><strong>Read this before using the numbers.</strong></p>
